@@ -4246,12 +4246,37 @@ const App = (() => {
     if (trainTab === 'board') return h + vTrainBoard(names);
     return h + vTrainAll();
   }
+  /* 교육 여정 맵 — 5개 코스를 역처럼 한 줄로. 끝낸 코스(초록) · 지금 코스(강조, 단계 점) · 앞으로 할 코스(회색) */
+  function journeyMap(name) {
+    const done = (S.trainDone || {})[name] || {};
+    const prs = TRAIN_TRACKS.map((tr) => ({ tr, pr: trackProgress(tr, name) }));
+    const curIdx = prs.findIndex((x) => !x.pr.complete);
+    const totalDone = prs.reduce((acc, x) => acc + x.pr.n, 0), total = prs.reduce((acc, x) => acc + x.pr.total, 0);
+    const cur = curIdx >= 0 ? prs[curIdx] : null;
+    const curStage = cur ? cur.tr.stages.find((st) => st.steps.some((u) => !done[u])) : null;
+    let h = `<div class="jmapWrap"><div class="jmapHead"><b>🗺️ ${esc(name)}님의 교육 여정</b>
+      <span class="mut">${totalDone}/${total}편 · 코스 ${prs.filter((x) => x.pr.complete).length}/${prs.length} 완주</span></div>
+      <div class="jmap">`;
+    prs.forEach((x, i) => {
+      const state = x.pr.complete ? 'done' : i === curIdx ? 'cur' : 'todo';
+      const dots = x.tr.stages.map((st) => { const n = st.steps.filter((u) => done[u]).length; return `<i class="${n === st.steps.length ? 'on' : n ? 'half' : ''}" title="${esc(st.name)} ${n}/${st.steps.length}"></i>`; }).join('');
+      h += `<button class="jnode ${state}" data-act="jmapGo" data-k="${x.tr.key}" title="${esc(x.tr.name)} ${x.pr.n}/${x.pr.total}">
+        <span class="jring" style="--p:${x.pr.pct}"><span class="jicon">${x.pr.complete ? '✓' : x.tr.icon}</span></span>
+        <span class="jname">${esc(x.tr.name.replace(' 코스', '').replace(' 필수', ''))}</span>
+        <span class="jpct">${x.pr.complete ? '완주 🏅' : state === 'cur' ? `${x.pr.n}/${x.pr.total} 진행 중` : `${x.pr.total}편`}</span>
+        <span class="jdots">${dots}</span></button>`;
+    });
+    h += `</div>
+      <div class="jnow">${cur ? `📍 지금 위치 — <b>${esc(cur.tr.name)}</b>${curStage ? ` › ${esc(curStage.name)}` : ''} <span class="mut">(${cur.pr.n}/${cur.pr.total}편)</span>` : '🎉 모든 코스를 완주했습니다!'}</div></div>`;
+    return h;
+  }
   function vTrainProgram(names) {
     let h = '';
     const reward = S.settings.trainReward || TRAIN_REWARD_DEFAULT;
     h += `<div class="notice ok"><b>🎁 보상</b> ${esc(reward)} <button class="btn sm ghost" data-act="trainReward">문구 고치기</button></div>`;
     if (!names.length) return h + `<div class="notice"><b>직원 명단이 비어 있습니다.</b><div class="hint">직원 › 직원 명단에 이름을 넣으면 사람별로 진행을 기록할 수 있습니다.</div></div>`;
     h += `<div class="mlabel">누구의 진행인가요?</div><div class="roles wrap" style="margin-bottom:12px">${names.map((n) => `<button class="rl${n === trainWho ? ' on' : ''}" data-act="trainWho" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>`;
+    h += journeyMap(trainWho);
     const ps = personSummary(trainWho);
     const nextTr = TRAIN_TRACKS.find((tr) => trackProgress(tr, trainWho).next);
     const nextUrl = nextTr ? trackProgress(nextTr, trainWho).next : null, nextItem = nextUrl ? trainByUrl(nextUrl) : null;
@@ -4871,6 +4896,7 @@ const App = (() => {
         case 'trainEdit': closeModal(); trainForm(trainList().find((t) => t.id === id)); break;
         case 'trainCat': trainCat = b.dataset.c; render(); break;
         case 'trainTab': trainTab = b.dataset.t; render(); break;
+        case 'jmapGo': { TRAIN_TRACKS.forEach((tr) => { openState['tr:' + tr.key] = tr.key === b.dataset.k; }); render(); const el = document.querySelector(`[data-k="tr:${b.dataset.k}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); break; }
         case 'trainWho': trainWho = b.dataset.n; render(); break;
         case 'trainOpen': trainOpen(b.dataset.u); break;
         case 'trainDone': { const who = trainWho || whoNow(); if (!who) { pickWho(); return; } trainMarkDone(b.dataset.u, who); break; }

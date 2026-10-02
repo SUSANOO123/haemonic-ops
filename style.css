@@ -1200,3 +1200,17 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
   .jdots{margin-left:auto;flex-direction:row}
   .jnode .jpct{margin-left:4px}
 }
+
+/* 매출 kg — 매장·배달 */
+.kgTbl{width:100%;border-collapse:collapse;margin:4px 0 10px;font-size:13.5px}
+.kgTbl th{text-align:left;font-weight:600;color:var(--muted);padding:4px 6px;font-size:12.5px}
+.kgTbl td{padding:3px 4px}
+.kgTbl input{width:100%;box-sizing:border-box;font:inherit;padding:8px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);text-align:right}
+.kgTbl tr.sum td{text-align:right;font-weight:700;padding:6px 10px;color:var(--ink-2);border-top:1px solid var(--rule)}
+.lbar.stack{display:flex;overflow:hidden}
+.lbar.stack i{display:block;height:100%}
+.lbar.stack i.s{background:var(--accent)}
+.lbar.stack i.d{background:var(--wk)}
+.lbar.stack i.n{background:var(--rule)}
+.legS,.legD,.legN{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin:0 2px 0 6px}
+.legS{background:var(--accent)}.legD{background:var(--wk)}.legN{background:var(--rule)}

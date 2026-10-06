@@ -3,7 +3,7 @@
 -- 하는 일:
 --   1) events 표: 앱이 "알릴 일"을 한 줄 넣으면 서버가 텔레그램으로 보냅니다 (즉시).
 --   2) 1분마다 실패한 건을 다시 보냅니다 (최대 3회).
---   3) 매일 21:30(한국 시간)에 매장별 마감 리포트를 서버가 만들어 보냅니다 — 매장 PC가 꺼져 있어도.
+--   3) 매일 21:50(한국 시간)에 매장별 마감 리포트를 서버가 만들어 보냅니다 — 매장 PC가 꺼져 있어도.
 -- 봇 토큰·대화방 ID는 앱 설정(docs 표의 settings)에 있는 값을 그대로 씁니다. 여기에 적을 것은 없습니다.
 
 create extension if not exists pg_cron with schema pg_catalog;
@@ -183,10 +183,10 @@ begin
   end loop;
 end $$;
 
--- 예약: 1분마다 재시도 확인, 매일 21:30 한국 시간(= 12:30 UTC) 리포트
+-- 예약: 1분마다 재시도 확인, 매일 21:50 한국 시간(= 12:50 UTC) 리포트
 select cron.unschedule(jobid) from cron.job where jobname in ('haemonic-events-check', 'haemonic-daily-report');
 select cron.schedule('haemonic-events-check', '* * * * *', $$select public.events_check()$$);
-select cron.schedule('haemonic-daily-report', '30 12 * * *', $$select public.daily_report_all()$$);
+select cron.schedule('haemonic-daily-report', '50 12 * * *', $$select public.daily_report_all()$$);
 
 -- 확인용: 지금 안산점 리포트 문구 미리 보기 (보내지는 않음)
 select public.daily_report('ansan');

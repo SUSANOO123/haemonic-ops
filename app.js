@@ -468,11 +468,11 @@ const App = (() => {
   async function checkReport() {
     if (S.settings.reportOff) return;
     const key = dateKey(), day = ensureDay(key);
-    const at = minutesOf(S.settings.reportAt || '21:30');
+    const at = minutesOf(S.settings.reportAt || '21:50');
     if (at == null || nowMin() < at) return;
     if (day.notified['reportSent']) return;                       // 이미 성공
     const hasTg = (S.settings.tgToken || '').trim() && (S.settings.tgChat || '').trim();
-    if (hasTg && serverSends()) return;                            // 서버가 21:30 에 보낸다 — 여기서 또 보내면 두 통
+    if (hasTg && serverSends()) return;                            // 서버가 21:50 에 보낸다 — 여기서 또 보내면 두 통
 
     if (hasTg) {
       // 전송 성공할 때까지 30초 틱마다 재시도한다. PC가 22:00에 꺼지므로 조용히 미루지 않는다.
@@ -519,7 +519,7 @@ const App = (() => {
     const day = S.days[key]; if (!day) return null;
     const ids = Object.keys(day.inst).filter((t) => tpl(t) && !tpl(t).rest && !day.inst[t].auto);   // 자동 완료(비해당 요일)는 리포트에서 뺀다
 
-    /* 리포트를 21:30에 보내므로, 그 시점에 아직 할 시간이 안 된 업무(마감 정산·문잠금 등)를
+    /* 리포트를 21:50에 보내므로, 그 시점에 아직 할 시간이 안 된 업무(마감 정산·문잠금 등)를
        미완료로 세면 매일 억울한 리포트가 나간다. '이후 예정'으로 분리하고 분모에서도 뺀다. */
     const isPending = (t) => {
       if (key !== dateKey()) return false;
@@ -3198,9 +3198,9 @@ const App = (() => {
       <div class="setrow"><span>사장님 폰 즉시 알림 <span class="hint" style="margin:0">중요 업무 완료·지연 때 한 줄</span></span>
         <button class="btn sm${S.settings.tgInstant === false ? '' : ' on'}" data-act="toggleTgInstant">${S.settings.tgInstant === false ? '꺼짐' : '켜짐'}</button></div>
       <p class="hint">${serverSends()
-        ? '서버에 로그인되어 있어 <b>알림은 서버가 보냅니다</b> — 마감 리포트는 매일 <b>21:30</b>(서버 고정), 매장 PC가 꺼져 있어도 갑니다. 실패하면 1분마다 3회 다시 보냅니다. 서버 설치는 <code>서버/supabase_alerts.sql</code>.'
+        ? '서버에 로그인되어 있어 <b>알림은 서버가 보냅니다</b> — 마감 리포트는 매일 <b>21:50</b>(서버 고정), 매장 PC가 꺼져 있어도 갑니다. 실패하면 1분마다 3회 다시 보냅니다. 서버 설치는 <code>서버/supabase_alerts.sql</code>.'
         : (S.settings.tgToken && S.settings.tgChat)
-          ? `매일 <b>${esc(S.settings.reportAt || '21:30')}</b> 에 텔레그램으로 <b>자동 전송</b>됩니다. 실패하면 30초마다 재시도하고, 화면에도 알려드립니다. 전송 시각에 앱(브라우저 탭)이 열려 있고 인터넷이 연결되어 있어야 합니다.`
+          ? `매일 <b>${esc(S.settings.reportAt || '21:50')}</b> 에 텔레그램으로 <b>자동 전송</b>됩니다. 실패하면 30초마다 재시도하고, 화면에도 알려드립니다. 전송 시각에 앱(브라우저 탭)이 열려 있고 인터넷이 연결되어 있어야 합니다.`
           : '텔레그램을 설정하면 그 시각에 자동으로 전송됩니다. 설정 전에는 문구만 만들어져 직접 복사해 보내시면 됩니다.'}
         리포트 시점 이후에 할 업무(마감 정산·문잠금)는 '이후 예정'으로 따로 표시되고 완료율에서 빠집니다.</p>
 
@@ -5543,7 +5543,7 @@ const App = (() => {
             }
             if (!r.ok) { alert('실패: ' + r.err); return; }
             if (!serverSends()) { alert('보냈습니다! 휴대폰 텔레그램을 확인하세요.'); return; }
-            const r2 = await Store.supaEvent('test', '해모닉 서버 알림 확인 🛰️ 이 메시지가 보이면 서버 알림(21:30 리포트 · 즉시 알림)도 준비된 것입니다.');
+            const r2 = await Store.supaEvent('test', '해모닉 서버 알림 확인 🛰️ 이 메시지가 보이면 서버 알림(21:50 리포트 · 즉시 알림)도 준비된 것입니다.');
             alert(r2.ok ? '2통을 보냈습니다 — 1통은 이 기기에서, 1통은 서버에서. 휴대폰에 둘 다 오면 끝입니다.\n(서버 것이 안 오면 서버/supabase_alerts.sql 을 아직 설치하지 않은 것입니다)'
               : '이 기기에서는 보냈지만 서버 알림 표가 없습니다: ' + r2.err + '\n서버/supabase_alerts.sql 을 SQL Editor 에서 실행하세요.');
           });
@@ -5624,7 +5624,7 @@ const App = (() => {
       }
       if (b.dataset.act === 'biz') { bizOf()[b.dataset.f] = b.value.trim(); save(); }
       if (b.dataset.act === 'minWage') { S.settings.minWage = Math.max(0, Number(b.value) || 0) || MIN_WAGE.hour; save(); render(); }
-      if (b.dataset.act === 'reportAt') { S.settings.reportAt = b.value || '21:30'; save(); render(); }
+      if (b.dataset.act === 'reportAt') { S.settings.reportAt = b.value || '21:50'; save(); render(); }
       if (b.dataset.act === 'tgToken') { S.settings.tgToken = b.value.trim(); save(); }
       if (b.dataset.act === 'pmStart') { if (/^\d{2}:\d{2}$/.test(b.value)) { S.settings.pmStart = b.value; save(); render(); } }
       if (b.dataset.act === 'tgChat') { S.settings.tgChat = b.value.trim(); save(); }

@@ -1270,3 +1270,23 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
 .dtb i.good{background:var(--ok)}.dtb i.mid{background:#D9A441}.dtb i.low{background:var(--crit)}.dtb i.none{background:var(--rule)}
 .dshift{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13.5px}
 .dshift>div{background:var(--surface);border-radius:8px;padding:8px 10px}
+
+/* 게임 요소 — 랭킹 · 배지 */
+.dreward{font-size:13px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:var(--accent-soft);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.rankList{display:flex;flex-direction:column;gap:6px}
+.rank{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:8px 10px;min-width:0}
+.rank.top{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.rkNo{flex:none;width:34px;text-align:center;font-weight:700;font-size:15px}
+.rkMain{flex:1;min-width:0}
+.rkName{font-size:14px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.rkSub{font-size:12px;color:var(--muted);margin-top:2px;word-break:keep-all}
+.rkPts{flex:none;text-align:right;font-variant-numeric:tabular-nums}
+.rkPts b{font-size:18px}.rkPts small{font-size:11px;color:var(--muted);margin-left:1px}
+.chip.lvl{background:var(--wk-soft);color:var(--wk)}
+.bdg{font-size:16px;margin-right:2px}
+.badgeGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.badgeCard{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:10px 12px;opacity:.6;font-size:13px}
+.badgeCard.got{opacity:1;border-color:var(--accent)}
+.bIcon{font-size:26px;flex:none;width:34px;text-align:center;filter:grayscale(1)}
+.badgeCard.got .bIcon{filter:none}
+.bWho{font-size:12px;color:var(--accent);margin-top:2px}

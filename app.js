@@ -757,6 +757,57 @@ const App = (() => {
     if (view === 'contracts') bindEditor();
   }
 
+  /* ── 게임 요소 — 활동 점수 · 레벨 · 배지 ─────────────────────────
+     점수는 이달 활동(체크·미션)과 누적 학습(영상·코스)으로 계산한다. 저장하지 않고 매번 문서에서 계산 — 사장님 요청 2026-10-06 */
+  const LEVELS = [[0, '🦐', '새우'], [100, '🦀', '꽃게'], [300, '🦞', '랍스터'], [600, '👑', '킹크랩'], [1000, '🏆', '대게왕']];
+  const POINTS = { video: 10, course: 50, check: 1, crit: 3, msAdd: 5, msDone: 30, msGoal: 50 };
+  const BADGES = [
+    { id: 'first', icon: '🎬', name: '첫 걸음', desc: '첫 교육 영상 시청', test: (s) => s.videos >= 1 },
+    { id: 'v10', icon: '📚', name: '배움꾼', desc: '영상 10편', test: (s) => s.videos >= 10 },
+    { id: 'v30', icon: '🎓', name: '지식왕', desc: '영상 30편', test: (s) => s.videos >= 30 },
+    { id: 'ms1', icon: '🎯', name: '실천가', desc: '첫 미션 달성', test: (s) => s.msDoneAll >= 1 },
+    { id: 'ms3', icon: '🏅', name: '이달의 미션', desc: '한 달 목표 달성', test: (s) => s.msGoalHit },
+    { id: 'ms10', icon: '💎', name: '미션 마스터', desc: '미션 10개 달성', test: (s) => s.msDoneAll >= 10 },
+    { id: 'c50', icon: '✅', name: '꾸준함', desc: '이달 체크 50건', test: (s) => s.checks >= 50 },
+    { id: 'c200', icon: '🔥', name: '불꽃', desc: '이달 체크 200건', test: (s) => s.checks >= 200 },
+    { id: 'crit30', icon: '🛡️', name: '수호자', desc: '이달 중요 업무 30건', test: (s) => s.critChecks >= 30 },
+    { id: 'all', icon: '🌟', name: '올 클리어', desc: '코스 5개 모두 완주', test: (s) => s.courses >= TRAIN_TRACKS.length },
+  ];
+  const levelOf = (pts) => { let L = LEVELS[0], next = null; LEVELS.forEach((l, i) => { if (pts >= l[0]) { L = l; next = LEVELS[i + 1] || null; } }); return { icon: L[1], name: L[2], min: L[0], next: next ? { icon: next[1], name: next[2], at: next[0], left: next[0] - pts } : null }; };
+  /* 한 매장 문서의 사람별 게임 통계 */
+  function gamify(doc, sid) {
+    const m = dateKey().slice(0, 7), td = doc.trainDone || {};
+    const names = [...new Set([...(doc.staff || []).filter((s) => s.active).map((s) => s.name), ...Object.keys(td), ...(doc.missions || []).map((x) => x.who)])].filter(Boolean);
+    const ph = (doc.staff || []).filter((s) => !s.active).map((s) => s.name);
+    const checks = {}, crit = {};
+    Object.entries(doc.days || {}).forEach(([k, dd]) => { if (k.slice(0, 7) !== m || !dd || !dd.inst) return; Object.entries(dd.inst).forEach(([id, r]) => { if (r.s !== 'done' || !r.by) return; checks[r.by] = (checks[r.by] || 0) + 1; const t = (doc.templates || []).find((x) => x.id === id); if (t && t.crit) crit[r.by] = (crit[r.by] || 0) + 1; }); (dd.extras || []).forEach((e) => { if (e.s === 'done' && e.by) checks[e.by] = (checks[e.by] || 0) + 1; }); });
+    const goal = Number((doc.settings || {}).missionGoal) || 3;
+    return names.filter((n) => !ph.includes(n)).map((n) => {
+      const seen = td[n] || {}, videos = Object.keys(seen).length;
+      const courseList = TRAIN_TRACKS.filter((tr) => { const st = trackSteps(tr); return st.length && st.every((u) => seen[u]); });
+      const ms = (doc.missions || []).filter((x) => x.who === n);
+      const msM = ms.filter((x) => x.month === m);
+      const msDone = msM.filter((x) => x.status === 'done').length, msDoneAll = ms.filter((x) => x.status === 'done').length;
+      const st = { name: n, sid, store: scopeName(sid), videos, courses: courseList.length, courseIcons: courseList.map((t) => t.icon).join(''), checks: checks[n] || 0, critChecks: crit[n] || 0,
+        msDone, msDoneAll, msOpen: msM.filter((x) => x.status === 'open').length, msWait: msM.filter((x) => x.status === 'claimed').length, msAdded: msM.length, msGoalHit: msDone >= goal, goal };
+      st.points = videos * POINTS.video + courseList.length * POINTS.course + st.checks * POINTS.check + st.critChecks * POINTS.crit + msM.length * POINTS.msAdd + msDone * POINTS.msDone + (st.msGoalHit ? POINTS.msGoal : 0);
+      st.level = levelOf(st.points);
+      st.badges = BADGES.filter((b) => b.test(st));
+      return st;
+    });
+  }
+  const medal = (i) => (['🥇', '🥈', '🥉'][i] || `${i + 1}위`);
+  function rankTable(list, mode) {
+    if (!list.length) return '<div class="mut" style="font-size:12.5px;padding:8px 0">아직 활동 기록이 없습니다. 영상을 보거나 할 일을 체크하면 점수가 쌓입니다.</div>';
+    return `<div class="rankList">${list.map((s, i) => `<div class="rank${i === 0 ? ' top' : ''}">
+      <span class="rkNo">${medal(i)}</span>
+      <div class="rkMain"><div class="rkName"><b>${esc(s.name)}</b> <span class="chip cat">${esc(s.store)}</span> <span class="chip lvl">${s.level.icon} ${s.level.name}</span></div>
+        <div class="rkSub">${mode === 'badge'
+          ? `${s.badges.length ? s.badges.map((b) => `<span class="bdg" title="${esc(b.name)} — ${esc(b.desc)}">${b.icon}</span>`).join('') : '<span class="mut">배지 없음</span>'}${s.courseIcons ? ` <span class="mut">코스 ${s.courseIcons}</span>` : ''}`
+          : `코스 <b>${s.courses}</b>개 수료 · 영상 <b>${s.videos}</b>편 · 미션 달성 <b>${s.msDone}</b>${s.msOpen || s.msWait ? ` · 진행 중 ${s.msOpen}${s.msWait ? ` · 확인 대기 ${s.msWait}` : ''}` : ''} · 체크 ${s.checks}건${s.critChecks ? ` (중요 ${s.critChecks})` : ''}`}</div></div>
+      <div class="rkPts"><b>${mode === 'badge' ? s.badges.length : s.points.toLocaleString('ko-KR')}</b><small>${mode === 'badge' ? '개' : '점'}</small></div></div>`).join('')}</div>`;
+  }
+
   /* ── 대시보드 — 운영·할 일 중심으로 안산점 · 안양점 나란히 ─────────
      매장 문서(doc) 하나를 요약하는 storeSnap 을 두 매장에 똑같이 적용한다. 지금 보는 매장은 S, 다른 매장은 서버에서 받은 문서(dashDocs). */
   let dashDocs = {}, dashAt = 0;
@@ -853,6 +904,16 @@ const App = (() => {
     h += sec('🎓', '교육 · 개인 미션', 'training', two((sn) => `
       <div class="dkpis">${kpi('확인 대기', `${sn.msWait}<small>건</small>`, sn.msWait ? '사장님 확인 필요' : '없음', sn.msWait ? 'bad' : 'ok')}${kpi('이달 달성', `${sn.msDone}<small>건</small>`, `진행 중 ${sn.msOpen} · 목표 1인 ${sn.goal}`)}${kpi('교육', `${sn.badges}<small>배지</small>`, `본 영상 ${sn.watched}편 · 직원 ${sn.staffN}명`)}</div>
       ${Object.keys(sn.msByWho).length ? `<div class="dlist">${Object.entries(sn.msByWho).sort((x, y) => y[1].d - x[1].d).slice(0, 4).map(([nm, c]) => `<div class="dli">${esc(nm)} <b>${c.d}</b>/${sn.goal}${c.d >= sn.goal ? ' 🏆' : ''}${c.w ? ` <span class="chip crit">확인 대기 ${c.w}</span>` : ''}</div>`).join('')}</div>` : '<div class="mut" style="font-size:12.5px">이달 미션이 아직 없습니다</div>'}`));
+
+    /* 5-2. 랭킹 — 두 매장 합쳐서 서로 독려 */
+    const all = stores.flatMap((st, i) => (st.id === cur ? gamify(S, st.id) : (dashDocs[st.id] ? gamify(dashDocs[st.id], st.id) : [])));
+    const byPts = all.slice().sort((x, y) => y.points - x.points || y.badges.length - x.badges.length).slice(0, 5);
+    const byBadge = all.slice().sort((x, y) => y.badges.length - x.badges.length || y.points - x.points).slice(0, 5);
+    const reward = S.settings.rankReward || '이달 활동 1위와 배지 최다 보유자에게 사장님 보상';
+    h += `<section class="dsec"><div class="dhead"><h3>🏆 이달 랭킹 — 두 매장 합산</h3><button class="btn sm ghost" data-act="trainBoardGo">자세히 ›</button></div>
+      <div class="dreward">🎁 ${esc(reward)} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button> <span class="mut">· 영상 ${POINTS.video}점 · 코스 완주 ${POINTS.course}점 · 체크 ${POINTS.check}점(중요 ${POINTS.crit}) · 미션 등록 ${POINTS.msAdd} · 달성 ${POINTS.msDone} · 월 목표 +${POINTS.msGoal}</span></div>
+      <div class="dcmp"><div class="dcol"><div class="dcolh"><b>활동 랭킹</b><span class="mut">점수순</span></div>${rankTable(byPts, 'points')}</div>
+      <div class="dcol"><div class="dcolh"><b>배지 랭킹</b><span class="mut">모은 배지</span></div>${rankTable(byBadge, 'badge')}</div></div></section>`;
 
     /* 6. 트러블 — 공용 문서, 매장별로 나눠 센다 */
     h += sec('📝', '트러블 (미해결)', 'issues', stores.map((st) => { const mine = openIssues.filter((x) => x.store === st.name); return `<div class="dcol${st.id === cur ? ' me' : ''}"><div class="dcolh"><b>${esc(st.name)}</b><span class="chip ${mine.length ? 'crit' : 'ok'}">${mine.length}건</span></div>
@@ -4467,9 +4528,16 @@ const App = (() => {
   }
   function vTrainBoard(names) {
     if (!names.length) return `<div class="notice"><b>직원 명단이 비어 있습니다.</b></div>`;
+    const g = gamify(S, Store.meta.current).sort((x, y) => y.points - x.points);
+    let h = `<div class="hd sub2"><h3>🏆 이달 활동 랭킹 — ${esc(storeName())}</h3><span class="hint" style="margin:0">두 매장 합산 랭킹은 대시보드에서</span></div>`;
+    h += `<div class="notice ok">🎁 ${esc(S.settings.rankReward || '이달 활동 1위와 배지 최다 보유자에게 사장님 보상')} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button>
+      <div class="hint" style="margin-top:4px">점수 — 영상 ${POINTS.video}점 · 코스 완주 ${POINTS.course}점 · 할 일 체크 ${POINTS.check}점(중요 ${POINTS.crit}점) · 미션 등록 ${POINTS.msAdd}점 · 미션 달성 ${POINTS.msDone}점 · 월 목표 달성 +${POINTS.msGoal}점. 레벨 — ${LEVELS.map(([p, i, n]) => `${i} ${n} ${p}+`).join(' → ')}</div></div>`;
+    h += rankTable(g, 'points');
+    h += `<div class="hd sub2" style="margin-top:18px"><h3>🎖️ 배지 — 모을 수 있는 것</h3></div><div class="badgeGrid">${BADGES.map((b) => { const who = g.filter((s) => s.badges.some((x) => x.id === b.id)).map((s) => s.name); return `<div class="badgeCard${who.length ? ' got' : ''}"><div class="bIcon">${b.icon}</div><div><b>${esc(b.name)}</b><div class="mut">${esc(b.desc)}</div><div class="bWho">${who.length ? who.map(esc).join(', ') : '<span class="mut">아직 없음</span>'}</div></div></div>`; }).join('')}
+      ${TRAIN_TRACKS.map((tr) => { const who = g.filter((s) => s.courseIcons.includes(tr.icon)).map((s) => s.name); return `<div class="badgeCard${who.length ? ' got' : ''}"><div class="bIcon">${tr.icon}</div><div><b>${esc(tr.name)} 완주</b><div class="mut">${trackSteps(tr).length}편</div><div class="bWho">${who.length ? who.map(esc).join(', ') : '<span class="mut">아직 없음</span>'}</div></div></div>`; }).join('')}</div>`;
     const rows = names.map((n) => ({ name: n, ...personSummary(n) })).sort((p, q) => q.pct - p.pct || q.mins - p.mins);
     const medal = ['🥇', '🥈', '🥉'];
-    let h = `<div class="hd sub2"><h3>직원별 진행</h3><span class="hint" style="margin:0">함께 보면 서로 끌어 줍니다 · 코스 완주 = 배지</span></div>`;
+    h += `<div class="hd sub2" style="margin-top:18px"><h3>직원별 교육 진행</h3><span class="hint" style="margin:0">코스 완주 = 배지</span></div>`;
     h += `<div class="tkLogWrap"><table class="tkLog cList"><thead><tr><th></th><th>이름</th><th>진행</th><th>본 영상</th><th>누적</th><th>완주 배지</th></tr></thead><tbody>${rows.map((r, i) => `<tr>
       <td>${i < 3 && r.n > 0 ? medal[i] : ''}</td><td><b>${esc(r.name)}</b></td>
       <td style="min-width:140px"><span class="stBar" style="display:block"><i style="width:${r.pct}%"></i></span><span class="mut">${r.pct}%</span></td>
@@ -4667,8 +4735,12 @@ const App = (() => {
     modal('미션 달성 확인', `<p class="mmemo"><b>${esc(x.who)}</b> — ${esc(x.text)}</p>
       <label>확인하며 한마디 <span class="opt">선택</span><input id="msNote" value="${esc(x.note || '')}" placeholder="예: 어제 룸 손님 배웅 잘 봤어요" autocomplete="off"></label>
       <p class="hint">확인하면 완료로 바뀌고, 텔레그램이 연결돼 있으면 방에 공유됩니다.</p>`, () => {
+      const before = (gamify(S, Store.meta.current).find((s) => s.name === x.who) || { points: 0, badges: [] });
       x.status = 'done'; x.doneAt = Date.now(); x.note = $('#msNote').value.trim() || undefined;
       save(); render();
+      const after = (gamify(S, Store.meta.current).find((s) => s.name === x.who) || { points: 0, badges: [] });
+      const newB = after.badges.filter((b) => !before.badges.some((q) => q.id === b.id));
+      if (newB.length) setTimeout(() => banner(`🎖️ ${x.who} 새 배지 — ${newB.map((b) => b.icon + ' ' + b.name).join(', ')}`, `활동 점수 ${after.points}점 · ${after.level.icon} ${after.level.name}`), 1200);
       const doneN = missionsOf(x.who, x.month).filter((q) => q.status === 'done').length, goal = missionGoal();
       const hasTg = (S.settings.tgToken || '').trim() && (S.settings.tgChat || '').trim();
       if (doneN === goal) {
@@ -5315,6 +5387,8 @@ const App = (() => {
         case 'toggleAskWho': S.settings.askWho = !S.settings.askWho; save(); render(); break;
         case 'orderUnlock': orderUnlockModal(); break;
         case 'dashRefresh': dashAt = 0; dashAsyncLoad(true); render(); break;
+        case 'trainBoardGo': trainTab = 'board'; view = 'training'; render(); window.scrollTo(0, 0); break;
+        case 'rankReward': { const v = prompt('랭킹 보상 문구 (직원에게 보입니다)', S.settings.rankReward || '이달 활동 1위와 배지 최다 보유자에게 사장님 보상'); if (v === null) return; S.settings.rankReward = v.trim() || undefined; save(); render(); break; }
         case 'dashGo': { const sid = b.dataset.s, v = b.dataset.v || 'today'; if (sid && sid !== Store.meta.current) { switchStore(sid).then(() => { view = v; render(); window.scrollTo(0, 0); }); } else { view = v; render(); window.scrollTo(0, 0); } break; }
         case 'skgView': S.ui.skg = b.dataset.k; save(); render(); break;
         case 'copyUrl': { const u = location.origin + '/'; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => banner('주소를 복사했습니다', u)).catch(() => alert('주소: ' + u)); break; }

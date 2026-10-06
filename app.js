@@ -2,7 +2,7 @@
 
 const App = (() => {
   let S = null;                 // 전체 상태
-  let view = 'today';
+  let view = 'dash';   // 사이트를 열면 대시보드부터 — 사장님 요청 2026-10-06
   let tickTimer = null;
 
   /* ── 유틸 ────────────────────────────────────────────────── */
@@ -675,12 +675,13 @@ const App = (() => {
   /* 왼쪽 메뉴: 대카테고리(g) 아래 하위 메뉴(items). 대카테고리를 누르면 접었다 펼친다.
      g 가 null 이면 헤더 없이 바로 버튼(설정). */
   const MENU = [
-    { id: 'work', g: '업무', ic: '🗂️', items: [['dash', '대시보드', '🧭'], ['rules', '공지사항 필독', '📌'], ['tanks', '수조 관리표', '🐟'], ['today', '할 일', '✅'], ['report', '기록', '📊']] },
-    { id: 'people', g: '직원', ic: '👥', items: [['month', '월간 근무표', '📅'], ['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['health', '보건증 관리', '🩺'], ['hygiene', '위생교육 일정관리', '🧼']] },
-    { id: 'ops', g: '운영', ic: '🏪', items: [['costs', '원가 관리', '💰'], ['buyInsight', '갑각류 매입 인사이트', '🦀'], ['notices', '월간 공지', '📢'], ['issues', '트러블시트', '📝']] },
-    { id: 'kitchen', g: '서비스 교육', ic: '🎓', items: [['training', '교육 자료', '🎓'], ['recipes', '레시피 관리', '📖']] },
-    { id: 'acct', g: '회계', ic: '💵', items: [['salesIn', '매출 입력', '🧾'], ['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
-    { id: 'sys', g: '설정', ic: '⚙️', items: [['settings', '설정', '⚙️'], ['routines', '루틴', '🔁']] },
+    { id: 'home', items: [['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
+    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['tanks', '수조 관리표', '🐟'], ['today', '할 일', '✅'], ['report', '기록', '📊']] },
+    { id: 'people', g: '직원', gs: '직원', ic: '👥', items: [['month', '월간 근무표', '📅'], ['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['health', '보건증 관리', '🩺'], ['hygiene', '위생교육 일정관리', '🧼']] },
+    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', items: [['costs', '원가 관리', '💰'], ['buyInsight', '갑각류 매입 인사이트', '🦀'], ['notices', '월간 공지', '📢'], ['issues', '트러블시트', '📝']] },
+    { id: 'kitchen', g: '서비스 교육', gs: '교육', ic: '🎓', items: [['training', '교육 자료', '🎓'], ['recipes', '레시피 관리', '📖']] },
+    { id: 'acct', g: '회계', gs: '회계', ic: '💵', items: [['salesIn', '매출 입력', '🧾'], ['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
+    { id: 'sys', g: '설정', gs: '설정', ic: '⚙️', items: [['settings', '설정', '⚙️'], ['routines', '루틴', '🔁']] },
   ];
   const groupOf = (k) => MENU.find((m) => m.items.some(([x]) => x === k));
 
@@ -700,8 +701,8 @@ const App = (() => {
   function sideMenu() {
     const item = ([k, n, ic]) => `<button class="sitem${view === k ? ' on' : ''}" data-act="view" data-v="${k}"><span class="sic">${ic}</span>${n}</button>`;
     const cur = groupOf(view);
-    return MENU.map((m) => {
-      if (!m.g) return `<div class="sgap"></div>${m.items.map(item).join('')}`;
+    return MENU.map((m, i) => {
+      if (!m.g) return `${i ? '<div class="sgap"></div>' : ''}<div class="shome">${m.items.map(item).join('')}</div>`;
       const open = navOpen.has(m.id), here = cur && cur.id === m.id;
       return `<button class="sgrp${open ? ' open' : ''}${here ? ' here' : ''}" data-act="navGroup" data-g="${m.id}" aria-expanded="${open}">
           <span class="sic">${m.ic}</span><span class="sgname">${m.g}</span><span class="sgcnt">${m.items.length}</span><span class="scaret">›</span>
@@ -713,7 +714,7 @@ const App = (() => {
   /* 모바일 상단: 1줄은 대카테고리, 2줄은 선택한 대카테고리의 하위 메뉴 */
   function topNav() {
     const cur = groupOf(view);
-    const gs = MENU.map((m) => `<button class="tab g${cur === m ? ' on' : ''}" data-act="navGroupM" data-g="${m.id}">${m.ic || '⚙️'} ${m.g || '설정'}</button>`).join('');
+    const gs = MENU.map((m) => `<button class="tab g${cur === m ? ' on' : ''}" data-act="${m.g ? 'navGroupM' : 'view'}" data-g="${m.id}" data-v="${m.g ? '' : m.items[0][0]}">${m.ic || '⚙️'} ${m.gs || m.g || '설정'}</button>`).join('');
     const subs = cur && cur.g ? `<div class="navs">${cur.items.map(([k, n, ic]) =>
       `<button class="tab s${view === k ? ' on' : ''}" data-act="view" data-v="${k}">${ic} ${n}</button>`).join('')}</div>` : '';
     return `<div class="navg">${gs}</div>${subs}`;
@@ -5828,7 +5829,7 @@ const App = (() => {
     S = (await Store.switchTo(id)) || freshState(id);
     staffTab = null; otherDoc = null; otherDocId = null; cOpen = null; cMode = null; cFilter = 'all';
     hydrate();
-    view = 'today';
+    if (!MENU.some((m) => m.items.some(([k]) => k === view))) view = 'dash';   // 보고 있던 화면은 그대로 둔다
     render();
     try { loadMarketCache(); } catch (e) {}   // 다른 매장 매입 단가(시세 참조)를 새 매장 기준으로 다시 읽는다
   }

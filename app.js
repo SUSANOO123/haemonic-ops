@@ -800,6 +800,22 @@ const App = (() => {
     });
   }
   const medal = (i) => (['🥇', '🥈', '🥉'][i] || `${i + 1}위`);
+  /* 두 매장 전 직원 통합 순위 — 점수 같으면 같은 등수(1,1,3), 0점은 0위 */
+  function rankAll(list) {
+    const sorted = list.slice().sort((x, y) => y.points - x.points || y.badges.length - x.badges.length || x.name.localeCompare(y.name, 'ko'));
+    let rank = 0, prev = null;
+    return sorted.map((s, i) => { if (s.points <= 0) { s.rank = 0; return s; } if (s.points !== prev) { rank = i + 1; prev = s.points; } s.rank = rank; return s; });
+  }
+  const rankLabel = (r) => (r === 0 ? '0위' : r <= 3 ? ['🥇', '🥈', '🥉'][r - 1] : `${r}위`);
+  function rankTableAll(list) {
+    if (!list.length) return '<div class="mut" style="font-size:12.5px;padding:8px 0">아직 직원이 없습니다.</div>';
+    const ranked = rankAll(list), allZero = ranked.every((s) => s.points <= 0);
+    return `${allZero ? '<div class="hint" style="margin:0 0 6px">아직 아무도 점수가 없어 모두 0위입니다. 영상을 보거나 할 일을 체크하면 바로 순위가 생깁니다.</div>' : ''}<div class="rankList">${ranked.map((s) => `<div class="rank${s.rank === 1 ? ' top' : ''}${s.rank === 0 ? ' zero' : ''}">
+      <span class="rkNo">${rankLabel(s.rank)}</span>
+      <div class="rkMain"><div class="rkName"><b>${esc(s.name)}</b> <span class="chip cat">${esc(s.store)}</span> <span class="chip lvl">${s.level.icon} ${s.level.name}</span>${s.badges.length ? ` <span class="rkBadges">${s.badges.map((b) => `<span class="bdg" title="${esc(b.name)} — ${esc(b.desc)}">${b.icon}</span>`).join('')}${s.courseIcons ? `<span class="bdg mut" title="완주 코스">${s.courseIcons}</span>` : ''}</span>` : ''}</div>
+        <div class="rkSub">코스 <b>${s.courses}</b>개 수료 · 영상 <b>${s.videos}</b>편${s.quizzes ? ` · 퀴즈 ${s.quizzes}개 통과(평균 ${s.quizTries}회)` : ''} · 미션 달성 <b>${s.msDone}</b>${s.msOpen || s.msWait ? ` · 진행 중 ${s.msOpen}${s.msWait ? ` · 확인 대기 ${s.msWait}` : ''}` : ''} · 체크 ${s.checks}건${s.critChecks ? ` (중요 ${s.critChecks})` : ''}</div></div>
+      <div class="rkPts"><b>${s.points.toLocaleString('ko-KR')}</b><small>점</small><div class="rkBc">배지 ${s.badges.length}</div></div></div>`).join('')}</div>`;
+  }
   function rankTable(list, mode) {
     if (!list.length) return '<div class="mut" style="font-size:12.5px;padding:8px 0">아직 활동 기록이 없습니다. 영상을 보거나 할 일을 체크하면 점수가 쌓입니다.</div>';
     return `<div class="rankList">${list.map((s, i) => `<div class="rank${i === 0 ? ' top' : ''}">
@@ -919,13 +935,12 @@ const App = (() => {
 
     /* 5-2. 랭킹 — 두 매장 합쳐서 서로 독려 */
     const all = stores.flatMap((st, i) => (st.id === cur ? gamify(S, st.id) : (dashDocs[st.id] ? gamify(dashDocs[st.id], st.id) : [])));
-    const byPts = all.slice().sort((x, y) => y.points - x.points || y.badges.length - x.badges.length).slice(0, 5);
-    const byBadge = all.slice().sort((x, y) => y.badges.length - x.badges.length || y.points - x.points).slice(0, 5);
     const reward = S.settings.rankReward || '이달 활동 1위와 배지 최다 보유자에게 사장님 보상';
-    h += `<section class="dsec"><div class="dhead"><h3>🏆 이달 랭킹 — 두 매장 합산</h3><button class="btn sm ghost" data-act="trainBoardGo">자세히 ›</button></div>
-      <div class="dreward">🎁 ${esc(reward)} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button> <span class="mut">· 영상 ${POINTS.video}점 · 코스 완주 ${POINTS.course}점 · 체크 ${POINTS.check}점(중요 ${POINTS.crit}) · 미션 등록 ${POINTS.msAdd} · 달성 ${POINTS.msDone} · 월 목표 +${POINTS.msGoal}</span></div>
-      <div class="dcmp"><div class="dcol"><div class="dcolh"><b>활동 랭킹</b><span class="mut">점수순</span></div>${rankTable(byPts, 'points')}</div>
-      <div class="dcol"><div class="dcolh"><b>배지 랭킹</b><span class="mut">모은 배지</span></div>${rankTable(byBadge, 'badge')}</div></div></section>`;
+    const missingStore = stores.filter((st, i) => st.id !== cur && !dashDocs[st.id]).map((st) => st.name);
+    h += `<section class="dsec"><div class="dhead"><h3>🏆 이달 랭킹 — 안산점 · 안양점 전 직원</h3><button class="btn sm ghost" data-act="trainBoardGo">자세히 ›</button></div>
+      <div class="dreward">🎁 ${esc(reward)} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button> <span class="mut">· 영상 ${POINTS.video}점 · 퀴즈 ${POINTS.quiz}점 · 코스 완주 ${POINTS.course}점 · 체크 ${POINTS.check}점(중요 ${POINTS.crit}) · 미션 등록 ${POINTS.msAdd} · 달성 ${POINTS.msDone} · 월 목표 +${POINTS.msGoal} · 같은 점수는 같은 등수</span></div>
+      ${missingStore.length ? `<div class="hint" style="margin:0 0 8px">${esc(missingStore.join(', '))} 직원은 서버 로그인 뒤에 함께 순위에 들어갑니다.</div>` : ''}
+      ${rankTableAll(all)}</section>`;
 
     /* 6. 트러블 — 공용 문서, 매장별로 나눠 센다 */
     h += sec('📝', '트러블 (미해결)', 'issues', stores.map((st) => { const mine = openIssues.filter((x) => x.store === st.name); return `<div class="dcol${st.id === cur ? ' me' : ''}"><div class="dcolh"><b>${esc(st.name)}</b><span class="chip ${mine.length ? 'crit' : 'ok'}">${mine.length}건</span></div>
@@ -4588,11 +4603,12 @@ const App = (() => {
   }
   function vTrainBoard(names) {
     if (!names.length) return `<div class="notice"><b>직원 명단이 비어 있습니다.</b></div>`;
-    const g = gamify(S, Store.meta.current).sort((x, y) => y.points - x.points);
-    let h = `<div class="hd sub2"><h3>🏆 이달 활동 랭킹 — ${esc(storeName())}</h3><span class="hint" style="margin:0">두 매장 합산 랭킹은 대시보드에서</span></div>`;
+    dashAsyncLoad();
+    const g = (Store.meta.stores || []).flatMap((st) => (st.id === Store.meta.current ? gamify(S, st.id) : (dashDocs[st.id] ? gamify(dashDocs[st.id], st.id) : [])));
+    let h = `<div class="hd sub2"><h3>🏆 이달 활동 랭킹 — 안산점 · 안양점 전 직원</h3><span class="hint" style="margin:0">같은 점수는 같은 등수 · 0점은 0위</span></div>`;
     h += `<div class="notice ok">🎁 ${esc(S.settings.rankReward || '이달 활동 1위와 배지 최다 보유자에게 사장님 보상')} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button>
       <div class="hint" style="margin-top:4px">점수 — 영상 ${POINTS.video}점 · 퀴즈 통과 ${POINTS.quiz}점 · 코스 완주 ${POINTS.course}점 · 할 일 체크 ${POINTS.check}점(중요 ${POINTS.crit}점) · 미션 등록 ${POINTS.msAdd}점 · 미션 달성 ${POINTS.msDone}점 · 월 목표 달성 +${POINTS.msGoal}점. 레벨 — ${LEVELS.map(([p, i, n]) => `${i} ${n} ${p}+`).join(' → ')}</div></div>`;
-    h += rankTable(g, 'points');
+    h += rankTableAll(g);
     h += `<div class="hd sub2" style="margin-top:18px"><h3>🎖️ 배지 — 모을 수 있는 것</h3></div><div class="badgeGrid">${BADGES.map((b) => { const who = g.filter((s) => s.badges.some((x) => x.id === b.id)).map((s) => s.name); return `<div class="badgeCard${who.length ? ' got' : ''}"><div class="bIcon">${b.icon}</div><div><b>${esc(b.name)}</b><div class="mut">${esc(b.desc)}</div><div class="bWho">${who.length ? who.map(esc).join(', ') : '<span class="mut">아직 없음</span>'}</div></div></div>`; }).join('')}
       ${TRAIN_TRACKS.map((tr) => { const who = g.filter((s) => s.courseIcons.includes(tr.icon)).map((s) => s.name); return `<div class="badgeCard${who.length ? ' got' : ''}"><div class="bIcon">${tr.icon}</div><div><b>${esc(tr.name)} 완주</b><div class="mut">${trackSteps(tr).length}편</div><div class="bWho">${who.length ? who.map(esc).join(', ') : '<span class="mut">아직 없음</span>'}</div></div></div>`; }).join('')}</div>`;
     const rows = names.map((n) => ({ name: n, ...personSummary(n) })).sort((p, q) => q.pct - p.pct || q.mins - p.mins);

@@ -1361,3 +1361,8 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
 @media (max-width:420px){.dscBody{flex-direction:column;align-items:stretch}.ring{margin:0 auto}}
 .stBar{display:block;height:6px;background:var(--rule);border-radius:3px;overflow:hidden}
 .stBar i{display:block;height:100%;background:var(--accent)}
+
+.rank.zero .rkNo{color:var(--muted);font-weight:600;font-size:13px}
+.rank.zero .rkPts b{color:var(--muted)}
+.rkBadges{display:inline-flex;gap:1px;margin-left:4px;vertical-align:middle}
+.rkBc{font-size:11px;color:var(--muted);margin-top:2px}

@@ -676,9 +676,9 @@ const App = (() => {
      g 가 null 이면 헤더 없이 바로 버튼(설정). */
   const MENU = [
     { id: 'home', items: [['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
-    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['tanks', '수조 관리표', '🐟'], ['today', '할 일', '✅'], ['report', '기록', '📊']] },
-    { id: 'people', g: '직원', gs: '직원', ic: '👥', items: [['month', '월간 근무표', '📅'], ['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['health', '보건증 관리', '🩺'], ['hygiene', '위생교육 일정관리', '🧼']] },
-    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', items: [['costs', '원가 관리', '💰'], ['buyInsight', '갑각류 매입 인사이트', '🦀'], ['notices', '월간 공지', '📢'], ['issues', '트러블시트', '📝']] },
+    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['tanks', '수조 관리표', '🐟'], ['today', '할 일', '✅'], ['report', '기록', '📊'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
+    { id: 'people', g: '직원', gs: '직원', ic: '👥', items: [['month', '월간 근무표', '📅'], ['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
+    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', items: [['buyInsight', '갑각류 매입 인사이트', '🦀'], ['notices', '월간 공지', '📢'], ['issues', '트러블시트', '📝']] },
     { id: 'kitchen', g: '서비스 교육', gs: '교육', ic: '🎓', items: [['training', '교육 자료', '🎓'], ['recipes', '레시피 관리', '📖']] },
     { id: 'acct', g: '회계', gs: '회계', ic: '💵', items: [['salesIn', '매출 입력', '🧾'], ['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
     { id: 'sys', g: '설정', gs: '설정', ic: '⚙️', items: [['settings', '설정', '⚙️'], ['routines', '루틴', '🔁']] },
@@ -863,18 +863,24 @@ const App = (() => {
     let h = `<div class="hd"><div><h2>대시보드</h2><div class="sub">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일 · 지금 ${pad(Math.floor(now / 60))}:${pad(now % 60)} 기준 · 안산점과 안양점을 나란히 봅니다. 다른 매장은 서버에 저장된 최신 기록입니다.</div></div>
       <button class="btn sm" data-act="dashRefresh">새로고침</button></div>`;
 
-    /* 0. 지금 급한 것 — 두 매장 합쳐서 */
-    const urgent = [];
-    snaps.forEach((sn) => { if (!sn) return; const tag = `[${sn.name}]`;
-      sn.late.filter((x) => x.crit).forEach((x) => urgent.push({ sid: sn.sid, cls: 'crit', text: `${tag} 중요 지연 — ${x.title} (${x.time})` }));
-      sn.tanks.forEach((x) => urgent.push({ sid: sn.sid, cls: 'crit', text: `${tag} 🐟 ${x} 오늘 처리` }));
-      if (sn.msWait) urgent.push({ sid: sn.sid, cls: 'warn', text: `${tag} 🎯 미션 확인 대기 ${sn.msWait}건` });
-      if (!sn.hasDay && now >= minutesOf(SLOTS[0].from)) urgent.push({ sid: sn.sid, cls: 'warn', text: `${tag} 오늘 아직 앱을 열지 않았습니다` });
-    });
-    const sp = Store.supa; if (sp.configured && !sp.signedIn) urgent.unshift({ sid: cur, cls: 'crit', text: '서버 로그인이 필요합니다 — 지금은 이 기기에만 저장되고 다른 매장이 안 보입니다' });
-    h += `<div class="durgent${urgent.length ? '' : ' ok'}">${urgent.length
-      ? `<div class="duh">지금 급한 것 ${urgent.length}건</div>` + urgent.slice(0, 8).map((u) => `<button class="dul ${u.cls}" data-act="dashGo" data-s="${u.sid}" data-v="${/수조/.test(u.text) ? 'tanks' : /미션/.test(u.text) ? 'training' : /서버/.test(u.text) ? 'settings' : 'today'}">${esc(u.text)}</button>`).join('')
-      : `<div class="duh">✅ 두 매장 모두 지금 급한 것이 없습니다</div><div class="hint" style="margin:0">지연된 중요 업무 · 수조 · 확인 대기 미션 · 서버 상태를 봤습니다.</div>`}</div>`;
+    /* 0. 매장 점수판 — 원형 게이지 + 급한 업무는 숫자로만 (사장님 요청 2026-10-06: 위쪽 목록 없애고 매장별 숫자) */
+    const noLogin0 = !(Store.supa && Store.supa.signedIn);
+    const ringCls = (pct) => (pct >= 90 ? 'good' : pct >= 70 ? 'mid' : 'low');
+    h += `<div class="dscore">${stores.map((st, i) => { const sn = snaps[i];
+      if (!sn) return `<div class="dsc${st.id === cur ? ' me' : ''}"><div class="dscHead"><b>${esc(st.name)}</b></div>${noLogin0 ? `<div class="dnologin"><b>서버 로그인이 필요합니다</b><div class="mut">로그인하면 이 매장 기록이 실시간으로 보입니다.</div><button class="btn sm primary" data-act="supaLogin">서버 로그인</button></div>` : '<div class="mut" style="padding:14px 0">서버에서 불러오는 중…</div>'}</div>`;
+      const lc = sn.late.filter((x) => x.crit).length;
+      const nums = [
+        { n: lc, l: '중요 지연', ic: '⏰', v: 'today' }, { n: sn.late.length - lc, l: '일반 지연', ic: '⌛', v: 'today', soft: true },
+        { n: sn.tanks.length, l: '수조 처리', ic: '🐟', v: 'tanks' }, { n: sn.msWait, l: '미션 확인', ic: '🎯', v: 'training' },
+      ];
+      return `<div class="dsc${st.id === cur ? ' me' : ''}">
+        <div class="dscHead"><b>${esc(st.name)}</b>${st.id === cur ? '<span class="chip today">지금 보는 매장</span>' : `<button class="btn sm ghost" data-act="dashGo" data-s="${st.id}" data-v="today">이 매장 보기</button>`}</div>
+        <div class="dscBody">
+          <button class="ring ${ringCls(sn.pct)}" style="--p:${sn.pct}" data-act="dashGo" data-s="${st.id}" data-v="today" title="오늘 진행률"><span><b>${sn.pct}</b><small>%</small><em>${sn.done}/${sn.total}</em></span></button>
+          <div class="dscNums">${nums.map((x) => `<button class="dnum${x.n ? (x.soft ? ' warn' : ' bad') : ' ok'}" data-act="dashGo" data-s="${st.id}" data-v="${x.v}"><span class="dnIc">${x.ic}</span><b>${x.n}</b><small>${x.l}</small></button>`).join('')}</div>
+        </div>
+        <div class="dscFoot"><span>👥 오전 <b>${sn.am.length}</b> · 오후 <b>${sn.pm.length}</b></span><span>🦀 폐사 7일 <b>${sn.deathSum}</b></span><span>🎓 배지 <b>${sn.badges}</b></span>${!sn.hasDay && now >= minutesOf(SLOTS[0].from) ? '<span class="warnTxt">오늘 앱 미접속</span>' : ''}</div>
+      </div>`; }).join('')}</div>`;
 
     const noLogin = !(Store.supa && Store.supa.signedIn);
     const col = (sn, st, body) => `<div class="dcol${st.id === cur ? ' me' : ''}"><div class="dcolh"><b>${esc(st.name)}</b>${st.id === cur ? '<span class="chip today">지금 보는 매장</span>' : `<button class="btn sm ghost" data-act="dashGo" data-s="${st.id}" data-v="today">이 매장 보기</button>`}</div>${sn ? body(sn) : (noLogin
@@ -886,9 +892,8 @@ const App = (() => {
     const two = (body) => stores.map((st, i) => col(snaps[i], st, body)).join('');
 
     /* 1. 오늘 할 일 */
-    h += sec('✅', '오늘 할 일', 'today', two((sn) => `
-      <div class="dkpis">${kpi('진행률', `${sn.pct}<small>%</small>`, `${sn.done}/${sn.total}건`, sn.total && sn.pct === 100 ? 'ok' : '')}${kpi('지연', `${sn.late.length}<small>건</small>`, sn.late.filter((x) => x.crit).length ? `중요 ${sn.late.filter((x) => x.crit).length}건` : '중요 없음', sn.late.length ? 'bad' : 'ok')}${kpi('근무', (sn.am.length || sn.pm.length) ? `${sn.am.length}<small>·</small>${sn.pm.length}` : '–', (sn.am.length || sn.pm.length) ? '오전 · 오후 인원' : '근무표 없음')}</div>
-      <div class="dslots">${sn.slots.map((r) => `<div class="dslot${r.key === curSlot ? ' cur' : ''}${r.n && r.d === r.n ? ' full' : ''}"><span>${r.name}</span><span class="stBar"><i style="width:${r.n ? Math.round(r.d / r.n * 100) : 0}%"></i></span><b>${r.d}/${r.n}</b></div>`).join('')}</div>
+    h += sec('✅', '오늘 할 일 — 시간대별', 'today', two((sn) => `
+      <div class="dslots big">${sn.slots.map((r) => `<div class="dslot${r.key === curSlot ? ' cur' : ''}${r.n && r.d === r.n ? ' full' : ''}"><span>${r.name}</span><span class="stBar"><i style="width:${r.n ? Math.round(r.d / r.n * 100) : 0}%"></i></span><b>${r.d}/${r.n}</b></div>`).join('')}</div>
       ${sn.late.length ? `<div class="dlist"><div class="dll">지연 중</div>${sn.late.slice(0, 4).map((x) => `<div class="dli ${x.crit ? 'crit' : ''}"><span class="tgTime sm late">${esc(x.time)}</span>${esc(x.title)}${x.crit ? '<span class="chip crit">중요</span>' : ''}</div>`).join('')}${sn.late.length > 4 ? `<div class="mut">외 ${sn.late.length - 4}건</div>` : ''}</div>` : ''}
       ${sn.next.length ? `<div class="dlist"><div class="dll">다음 할 일</div>${sn.next.map((x) => `<div class="dli"><span class="tgTime sm">${esc(x.time)}</span>${esc(x.title)}${x.crit ? '<span class="chip crit">중요</span>' : ''}</div>`).join('')}</div>` : ''}`));
 

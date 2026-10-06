@@ -5834,6 +5834,8 @@ const App = (() => {
       S.routineVer = ROUTINE_VER;
     }
     S.templates.forEach((t) => { if (!t.scope) t.scope = t.store || 'all'; });
+    // 마감 리포트 시각 21:30 → 21:50 (사장님 결정 2026-10-06). 한 번만 바꾸고 표시해 둔다 — 이후엔 설정에서 바꾼 값을 그대로 둔다
+    if (S.settings && !S.settings.reportAtV2) { if (!S.settings.reportAt || S.settings.reportAt === '21:30' || S.settings.reportAt === '22:30') S.settings.reportAt = '21:50'; S.settings.reportAtV2 = 1; }
     /* 앱을 새로 열면 항상 오늘·전체 보기로 시작한다.
        공용 PC라 역할 필터가 남아 있으면 다음 사람이 자기 항목을 못 보게 된다. */
     S.ui.date = dateKey();

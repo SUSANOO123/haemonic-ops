@@ -1251,3 +1251,22 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
 .dsv{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
 .dnote{margin-top:8px;font-size:13px}
 .spark.sm{height:44px;margin-top:8px}
+
+/* 대시보드 — 두 매장 비교 */
+.dgrid{display:block}
+.dsec{margin-bottom:12px}
+.dcmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:760px){.dcmp{grid-template-columns:1fr}}
+.dcol{background:var(--surface-2);border-radius:10px;padding:10px 12px;min-width:0}
+.dcol.me{box-shadow:inset 0 0 0 2px var(--accent-soft)}
+.dcolh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:14px}
+.dcol .dkpi{background:var(--surface)}
+.dkpis.two{grid-template-columns:1fr 1fr}
+.dli.crit{color:var(--crit)}
+.tgTime.sm.late{background:var(--crit)}
+.dtrend{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;height:84px;align-items:end;margin-top:4px}
+.dtb{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;font-size:10.5px;color:var(--muted)}
+.dtb i{display:block;width:70%;border-radius:4px 4px 0 0;background:var(--rule)}
+.dtb i.good{background:var(--ok)}.dtb i.mid{background:#D9A441}.dtb i.low{background:var(--crit)}.dtb i.none{background:var(--rule)}
+.dshift{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13.5px}
+.dshift>div{background:var(--surface);border-radius:8px;padding:8px 10px}

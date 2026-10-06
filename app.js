@@ -3198,7 +3198,7 @@ const App = (() => {
       <div class="setrow"><span>사장님 폰 즉시 알림 <span class="hint" style="margin:0">중요 업무 완료·지연 때 한 줄</span></span>
         <button class="btn sm${S.settings.tgInstant === false ? '' : ' on'}" data-act="toggleTgInstant">${S.settings.tgInstant === false ? '꺼짐' : '켜짐'}</button></div>
       <p class="hint">${serverSends()
-        ? '서버에 로그인되어 있어 <b>알림은 서버가 보냅니다</b> — 마감 리포트는 매일 <b>21:50</b>(서버 고정), 매장 PC가 꺼져 있어도 갑니다. 실패하면 1분마다 3회 다시 보냅니다. 서버 설치는 <code>서버/supabase_alerts.sql</code>.'
+        ? `서버에 로그인되어 있어 <b>알림은 서버가 보냅니다</b> — 마감 리포트는 매일 <b>${esc(S.settings.reportAt || '21:50')}</b>(위 '띄우는 시각'을 바꾸면 서버도 따라갑니다), 매장 PC가 꺼져 있어도 갑니다. 실패하면 1분마다 3회 다시 보냅니다. 서버 설치는 <code>서버/supabase_alerts.sql</code>.`
         : (S.settings.tgToken && S.settings.tgChat)
           ? `매일 <b>${esc(S.settings.reportAt || '21:50')}</b> 에 텔레그램으로 <b>자동 전송</b>됩니다. 실패하면 30초마다 재시도하고, 화면에도 알려드립니다. 전송 시각에 앱(브라우저 탭)이 열려 있고 인터넷이 연결되어 있어야 합니다.`
           : '텔레그램을 설정하면 그 시각에 자동으로 전송됩니다. 설정 전에는 문구만 만들어져 직접 복사해 보내시면 됩니다.'}

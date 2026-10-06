@@ -1290,3 +1290,39 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
 .bIcon{font-size:26px;flex:none;width:34px;text-align:center;filter:grayscale(1)}
 .badgeCard.got .bIcon{filter:none}
 .bWho{font-size:12px;color:var(--accent);margin-top:2px}
+
+/* 확인 퀴즈 */
+.qz{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--surface-2)}
+.qzItem{padding:8px 0;border-top:1px solid var(--rule-soft)}
+.qzItem:first-of-type{border-top:0}
+.qzQ{font-size:14px;margin-bottom:6px;word-break:keep-all}
+.qzBtns{display:flex;gap:6px}
+.qzA{flex:1;min-height:40px}
+.qzA.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.qzItem.bad .qzA.on{background:var(--crit);border-color:var(--crit)}
+.qzWhy{font-size:12.5px;color:var(--ink-2);margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--surface)}
+.qzItem.bad .qzWhy{color:var(--crit)}
+.qzItem.good .qzWhy{color:var(--ok)}
+
+/* ═══ 모바일 앱형 UI — 큰 카테고리는 아래 고정 바, 작은 탭은 위 가로 스크롤 ═══ */
+@media (max-width:959px){
+  .navg{position:fixed;left:0;right:0;bottom:0;z-index:35;background:var(--ground);border-top:1px solid var(--rule);
+    display:grid;grid-template-columns:repeat(6,1fr);gap:0;padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));overflow:visible}
+  .navg .tab.g{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 2px;border:0;border-radius:10px;
+    font-size:11px;line-height:1.2;min-height:50px;white-space:nowrap;color:var(--muted)}
+  .navg .tab.g.on{color:var(--accent);background:var(--accent-soft);font-weight:700;border-bottom:0}
+  .navg .tab.g::first-letter{font-size:18px}
+  .navs{padding:6px 10px;gap:6px}
+  .tab.s{font-size:13.5px;min-height:36px;padding:6px 11px;border-radius:999px;border:1px solid var(--rule);background:var(--surface)}
+  .tab.s.on{border-color:var(--accent)}
+  main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .hrow{padding:8px 12px 0;gap:8px}
+  .brand{font-size:16px}.brand small{display:none}
+  .filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .filters::-webkit-scrollbar{display:none}
+  .filters .fl{white-space:nowrap;flex:none}
+  .hd{flex-wrap:wrap}.hd .mnav{width:100%;justify-content:flex-start;flex-wrap:wrap}.mnav .btn{white-space:nowrap}
+  .trStep .rowbtns .btn{min-height:40px;padding:8px 12px}
+  .orderBar{position:static}
+  #alarmBar{top:0}
+}

@@ -760,7 +760,7 @@ const App = (() => {
   /* ── 게임 요소 — 활동 점수 · 레벨 · 배지 ─────────────────────────
      점수는 이달 활동(체크·미션)과 누적 학습(영상·코스)으로 계산한다. 저장하지 않고 매번 문서에서 계산 — 사장님 요청 2026-10-06 */
   const LEVELS = [[0, '🦐', '새우'], [100, '🦀', '꽃게'], [300, '🦞', '랍스터'], [600, '👑', '킹크랩'], [1000, '🏆', '대게왕']];
-  const POINTS = { video: 10, course: 50, check: 1, crit: 3, msAdd: 5, msDone: 30, msGoal: 50 };
+  const POINTS = { video: 10, course: 50, check: 1, crit: 3, msAdd: 5, msDone: 30, msGoal: 50, quiz: 5 };
   const BADGES = [
     { id: 'first', icon: '🎬', name: '첫 걸음', desc: '첫 교육 영상 시청', test: (s) => s.videos >= 1 },
     { id: 'v10', icon: '📚', name: '배움꾼', desc: '영상 10편', test: (s) => s.videos >= 10 },
@@ -788,9 +788,11 @@ const App = (() => {
       const ms = (doc.missions || []).filter((x) => x.who === n);
       const msM = ms.filter((x) => x.month === m);
       const msDone = msM.filter((x) => x.status === 'done').length, msDoneAll = ms.filter((x) => x.status === 'done').length;
+      const qz = Object.values(((doc.trainQuiz || {})[n]) || {});
       const st = { name: n, sid, store: scopeName(sid), videos, courses: courseList.length, courseIcons: courseList.map((t) => t.icon).join(''), checks: checks[n] || 0, critChecks: crit[n] || 0,
+        quizzes: qz.length, quizTries: qz.length ? Math.round(qz.reduce((acc, r) => acc + (r.tries || 1), 0) / qz.length * 10) / 10 : 0,
         msDone, msDoneAll, msOpen: msM.filter((x) => x.status === 'open').length, msWait: msM.filter((x) => x.status === 'claimed').length, msAdded: msM.length, msGoalHit: msDone >= goal, goal };
-      st.points = videos * POINTS.video + courseList.length * POINTS.course + st.checks * POINTS.check + st.critChecks * POINTS.crit + msM.length * POINTS.msAdd + msDone * POINTS.msDone + (st.msGoalHit ? POINTS.msGoal : 0);
+      st.points = videos * POINTS.video + courseList.length * POINTS.course + st.quizzes * POINTS.quiz + st.checks * POINTS.check + st.critChecks * POINTS.crit + msM.length * POINTS.msAdd + msDone * POINTS.msDone + (st.msGoalHit ? POINTS.msGoal : 0);
       st.level = levelOf(st.points);
       st.badges = BADGES.filter((b) => b.test(st));
       return st;
@@ -804,7 +806,7 @@ const App = (() => {
       <div class="rkMain"><div class="rkName"><b>${esc(s.name)}</b> <span class="chip cat">${esc(s.store)}</span> <span class="chip lvl">${s.level.icon} ${s.level.name}</span></div>
         <div class="rkSub">${mode === 'badge'
           ? `${s.badges.length ? s.badges.map((b) => `<span class="bdg" title="${esc(b.name)} — ${esc(b.desc)}">${b.icon}</span>`).join('') : '<span class="mut">배지 없음</span>'}${s.courseIcons ? ` <span class="mut">코스 ${s.courseIcons}</span>` : ''}`
-          : `코스 <b>${s.courses}</b>개 수료 · 영상 <b>${s.videos}</b>편 · 미션 달성 <b>${s.msDone}</b>${s.msOpen || s.msWait ? ` · 진행 중 ${s.msOpen}${s.msWait ? ` · 확인 대기 ${s.msWait}` : ''}` : ''} · 체크 ${s.checks}건${s.critChecks ? ` (중요 ${s.critChecks})` : ''}`}</div></div>
+          : `코스 <b>${s.courses}</b>개 수료 · 영상 <b>${s.videos}</b>편${s.quizzes ? ` · 퀴즈 ${s.quizzes}개 통과(평균 ${s.quizTries}회)` : ''} · 미션 달성 <b>${s.msDone}</b>${s.msOpen || s.msWait ? ` · 진행 중 ${s.msOpen}${s.msWait ? ` · 확인 대기 ${s.msWait}` : ''}` : ''} · 체크 ${s.checks}건${s.critChecks ? ` (중요 ${s.critChecks})` : ''}`}</div></div>
       <div class="rkPts"><b>${mode === 'badge' ? s.badges.length : s.points.toLocaleString('ko-KR')}</b><small>${mode === 'badge' ? '개' : '점'}</small></div></div>`).join('')}</div>`;
   }
 
@@ -4418,6 +4420,41 @@ const App = (() => {
         { name: '2단계 · 수산물 위생과 안전', effect: '갑각류 위생 기준과 주방 사고 유형을 알고 예방한다', steps: ['https://www.youtube.com/watch?v=3c9Slq1dGbk', 'https://www.youtube.com/watch?v=ss2Z3CpN92g', 'https://www.youtube.com/watch?v=Co8OmnrI-gw'] },
       ] },
   ];
+  /* 영상 뒤 O/X 퀴즈 — 첫 출근 3일 필수 코스 9편. 다 맞혀야 "적용할 것 한 줄"을 적을 수 있다. 틀리면 이유를 보여 주고 다시 (시도 횟수 기록) — 사장님 요청 2026-10-06 */
+  const TRAIN_QUIZ = {
+    'https://www.youtube.com/watch?v=wd6XR9Q1IM8': [
+      { q: '손은 흐르는 물에 비누로 30초 이상 씻는다.', a: true, why: '30초 이상, 손가락 사이·손톱 밑까지 6단계로 씻어야 세균이 제대로 떨어집니다.' },
+      { q: '장갑을 끼면 손을 씻지 않아도 된다.', a: false, why: '장갑 안쪽에서 세균이 더 빨리 늘어납니다. 장갑을 끼기 전에도 손을 씻어야 합니다.' },
+      { q: '화장실을 다녀온 뒤에는 반드시 손을 씻는다.', a: true, why: '화장실 이후, 생물(갑각류·날고기)을 만진 뒤, 휴대폰을 만진 뒤가 손 씻기 필수 시점입니다.' }],
+    'https://www.youtube.com/watch?v=JjUrJLU73-o': [
+      { q: '조리 중에는 반지·시계 같은 장신구를 빼야 한다.', a: true, why: '장신구 틈에 세균이 남고, 음식에 떨어지는 이물 사고의 원인이 됩니다.' },
+      { q: '손에 상처가 있어도 밴드만 붙이면 맨손으로 조리해도 된다.', a: false, why: '상처에는 황색포도상구균이 많습니다. 방수 밴드 위에 장갑을 끼거나 조리에서 빠져야 합니다.' },
+      { q: '위생모는 머리카락이 밖으로 나오지 않게 쓴다.', a: true, why: '머리카락 이물은 가장 흔한 컴플레인입니다. 앞머리까지 모자 안에 넣습니다.' }],
+    'https://www.youtube.com/watch?v=Xq7kBre2YpQ': [
+      { q: '식중독균은 냉장 온도에서 모두 죽는다.', a: false, why: '냉장은 번식을 늦출 뿐입니다. 리스테리아처럼 냉장에서도 자라는 균이 있어 보관 기간을 지켜야 합니다.' },
+      { q: '설사·구토 증상이 있는 직원은 조리 업무에서 빠져야 한다.', a: true, why: '노로바이러스 등은 증상이 있는 사람 손을 통해 퍼집니다. 증상이 있으면 바로 사장님께 알립니다.' },
+      { q: '익힌 음식과 날음식은 같은 칼·도마를 써도 된다.', a: false, why: '날음식의 균이 익힌 음식으로 옮는 교차오염이 식중독의 큰 원인입니다. 칼·도마를 구분합니다.' }],
+    'https://www.youtube.com/watch?v=Se7GQXciFgs': [
+      { q: '인사는 손님이 들어오고 3초 안에 눈을 맞추며 한다.', a: true, why: '처음 3초가 그 손님의 매장 평가를 정합니다. 하던 일을 멈추고 눈을 맞춥니다.' },
+      { q: '바쁠 때는 인사를 생략해도 된다.', a: false, why: '바쁠수록 인사가 "기다려 달라"는 신호가 됩니다. 짧게라도 "어서 오세요, 잠시만요"를 합니다.' }],
+    'https://www.youtube.com/watch?v=SYIaY9kL_Do': [
+      { q: '손님 앞에서 동료와 잡담하거나 휴대폰을 보는 것은 금기행동이다.', a: true, why: '손님은 "나보다 다른 게 중요하다"고 느낍니다. 우리 공지사항의 휴대폰 규칙과 같은 이유입니다.' },
+      { q: '손님 요청에 "안 돼요"라고 바로 끊어 말하는 것은 괜찮다.', a: false, why: '거절은 대안과 함께 해야 합니다. "그건 어렵고, 대신 이렇게 해 드릴 수 있어요."' }],
+    'https://www.youtube.com/watch?v=BjyWhBtd5wg': [
+      { q: '"안 돼요" 대신 "이렇게 도와드릴 수 있어요"처럼 대안을 먼저 말한다.', a: true, why: '같은 내용도 대안을 먼저 말하면 손님이 거절로 받아들이지 않습니다.' },
+      { q: '내용이 같으면 말투는 손님 만족에 영향이 없다.', a: false, why: '손님은 내용보다 말투를 먼저 기억합니다. 쿠션어와 청유형이 그래서 중요합니다.' }],
+    'https://www.youtube.com/watch?v=kFPPSHMN2L0': [
+      { q: '바닥에 물·기름이 떨어지면 바로 닦는다.', a: true, why: '주방 사고 1위가 미끄러짐입니다. "나중에"가 사고로 이어집니다.' },
+      { q: '급할 때는 젖은 바닥에서 뛰어도 된다.', a: false, why: '뛰다 넘어지면 뜨거운 물·칼을 든 채 다칩니다. 급할수록 걷습니다.' }],
+    'https://www.youtube.com/watch?v=nfAtpav6L1k': [
+      { q: '마감 때 가스 중간밸브를 잠그고 확인한다.', a: true, why: '우리 마감 루틴 "가스·전기 최종 확인"이 중요 업무인 이유입니다.' },
+      { q: '가스 냄새가 나면 환풍기 스위치를 켜서 빼면 된다.', a: false, why: '스위치 불꽃이 폭발을 일으킬 수 있습니다. 창문을 열고 밸브를 잠근 뒤 밖에서 신고합니다.' }],
+    'https://www.youtube.com/watch?v=YFnojqczG6E': [
+      { q: '업무상 적정 범위를 넘어 신체적·정신적 고통을 주는 행위는 직장 내 괴롭힘이다.', a: true, why: '근로기준법이 정한 정의입니다. 지위나 관계의 우위를 이용한 행위가 해당합니다.' },
+      { q: '한 번뿐이면 괴롭힘이 아니다.', a: false, why: '반복되지 않아도 정도가 심하면 괴롭힘에 해당합니다. 우리 룰 "상호 존중과 바른 언어"의 근거입니다.' }],
+  };
+  const quizOf = (url) => TRAIN_QUIZ[url] || null;
+  const quizRec = (who, url) => (((S.trainQuiz || {})[who] || {})[url] || null);
   const TRAIN_REWARD_DEFAULT = '코스를 완주하면 사장님께 말씀해 주세요 — 완주 배지와 함께 작은 보상을 드립니다. 배운 것을 매장에서 실제로 적용해 성과가 나면 더 큰 보상이 있습니다.';
   function seedTraining(onlyNew) {
     const list = (S.training = S.training || []), seen = (S.trainSeen = S.trainSeen || []);
@@ -4519,7 +4556,7 @@ const App = (() => {
             <div class="trEffect">✨ 이 단계를 마치면 — ${esc(st.effect)}</div>
             ${st.steps.map((u) => { idx++; const it = trainByUrl(u); if (!it) return ''; const d = done[u]; const isNext = u === pr.next;
               return `<div class="trStep${d ? ' done' : ''}${isNext ? ' next' : ''}"><span class="trNo">${d ? '✓' : idx}</span>
-                <div class="trStepMain"><div class="trStepTitle">${esc(it.title)}</div><div class="mut">${esc(it.cat)}${it.sub ? ' · ' + esc(it.sub) : ''}${it.min ? ' · ' + it.min + '분' : ''}${d ? ' · ' + d + ' 시청' : ''}${isNext ? ' · <b>다음 차례</b>' : ''}</div></div>
+                <div class="trStepMain"><div class="trStepTitle">${esc(it.title)}</div><div class="mut">${esc(it.cat)}${it.sub ? ' · ' + esc(it.sub) : ''}${it.min ? ' · ' + it.min + '분' : ''}${quizOf(u) ? ' · 📝 퀴즈' : ''}${d ? ' · ' + d + ' 시청' : ''}${(() => { const r = quizRec(trainWho, u); return r ? ` · 퀴즈 ${r.tries}회 만에 통과` : ''; })()}${isNext ? ' · <b>다음 차례</b>' : ''}</div></div>
                 <span class="rowbtns" style="margin:0"><button class="btn sm${isNext ? ' primary' : ''}" data-act="trainOpen" data-u="${esc(u)}">${d ? '다시 보기' : '보기'}</button>${d ? `<button class="btn sm ghost" data-act="trainUndo" data-u="${esc(u)}">취소</button>` : ''}</span></div>`; }).join('')}
           </div>`; }).join('')}
       </details>`;
@@ -4531,7 +4568,7 @@ const App = (() => {
     const g = gamify(S, Store.meta.current).sort((x, y) => y.points - x.points);
     let h = `<div class="hd sub2"><h3>🏆 이달 활동 랭킹 — ${esc(storeName())}</h3><span class="hint" style="margin:0">두 매장 합산 랭킹은 대시보드에서</span></div>`;
     h += `<div class="notice ok">🎁 ${esc(S.settings.rankReward || '이달 활동 1위와 배지 최다 보유자에게 사장님 보상')} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button>
-      <div class="hint" style="margin-top:4px">점수 — 영상 ${POINTS.video}점 · 코스 완주 ${POINTS.course}점 · 할 일 체크 ${POINTS.check}점(중요 ${POINTS.crit}점) · 미션 등록 ${POINTS.msAdd}점 · 미션 달성 ${POINTS.msDone}점 · 월 목표 달성 +${POINTS.msGoal}점. 레벨 — ${LEVELS.map(([p, i, n]) => `${i} ${n} ${p}+`).join(' → ')}</div></div>`;
+      <div class="hint" style="margin-top:4px">점수 — 영상 ${POINTS.video}점 · 퀴즈 통과 ${POINTS.quiz}점 · 코스 완주 ${POINTS.course}점 · 할 일 체크 ${POINTS.check}점(중요 ${POINTS.crit}점) · 미션 등록 ${POINTS.msAdd}점 · 미션 달성 ${POINTS.msDone}점 · 월 목표 달성 +${POINTS.msGoal}점. 레벨 — ${LEVELS.map(([p, i, n]) => `${i} ${n} ${p}+`).join(' → ')}</div></div>`;
     h += rankTable(g, 'points');
     h += `<div class="hd sub2" style="margin-top:18px"><h3>🎖️ 배지 — 모을 수 있는 것</h3></div><div class="badgeGrid">${BADGES.map((b) => { const who = g.filter((s) => s.badges.some((x) => x.id === b.id)).map((s) => s.name); return `<div class="badgeCard${who.length ? ' got' : ''}"><div class="bIcon">${b.icon}</div><div><b>${esc(b.name)}</b><div class="mut">${esc(b.desc)}</div><div class="bWho">${who.length ? who.map(esc).join(', ') : '<span class="mut">아직 없음</span>'}</div></div></div>`; }).join('')}
       ${TRAIN_TRACKS.map((tr) => { const who = g.filter((s) => s.courseIcons.includes(tr.icon)).map((s) => s.name); return `<div class="badgeCard${who.length ? ' got' : ''}"><div class="bIcon">${tr.icon}</div><div><b>${esc(tr.name)} 완주</b><div class="mut">${trackSteps(tr).length}편</div><div class="bWho">${who.length ? who.map(esc).join(', ') : '<span class="mut">아직 없음</span>'}</div></div></div>`; }).join('')}</div>`;
@@ -4617,13 +4654,32 @@ const App = (() => {
     }
     const need = w.player ? (w.dur ? w.dur * 0.9 : Infinity) : (w.fallbackSec || 0) * 0.9;
     const ready = w.ended || (need !== Infinity && w.watched >= need);
-    if (ready && !w.ready) { w.ready = true; }
+    if (ready && !w.ready) { w.ready = true; quizShow(); }
     const bar = $('#wProg'), txt = $('#wTxt'), ta = $('#msText'), ok = m.querySelector('[data-act="mOk"]');
     const pct = need && need !== Infinity ? Math.min(100, Math.round(w.watched / need * 100)) : 0;
     if (bar) bar.style.width = pct + '%';
-    if (txt) txt.textContent = w.ready ? '✅ 다 봤습니다 — 아래에 적용할 것 한 가지를 적어 주세요' : (w.player && w.dur ? `시청 ${fmtSec(w.watched)} / ${fmtSec(w.dur)} · 90% 이상 보면 열립니다` : w.fallbackSec ? `시청 ${fmtSec(w.watched)} / 약 ${fmtSec(w.fallbackSec)}` : '재생을 시작하세요');
-    if (ta) ta.disabled = !w.ready;
-    if (ok) ok.disabled = !w.ready;
+    const unlocked = w.ready && (!w.quiz || w.quizPassed);
+    if (txt) txt.textContent = !w.ready ? (w.player && w.dur ? `시청 ${fmtSec(w.watched)} / ${fmtSec(w.dur)} · 90% 이상 보면 열립니다` : w.fallbackSec ? `시청 ${fmtSec(w.watched)} / 약 ${fmtSec(w.fallbackSec)}` : '재생을 시작하세요') : (w.quiz && !w.quizPassed ? '✅ 다 봤습니다 — 아래 확인 퀴즈를 풀어 주세요' : '✅ 다 봤습니다 — 아래에 적용할 것 한 가지를 적어 주세요');
+    if (ta) ta.disabled = !unlocked;
+    if (ok) ok.disabled = !unlocked;
+  }
+  function quizShow() { const q = $('#qz'); if (q) { q.hidden = false; const msg = $('#qzMsg'); if (msg && watch && !watch.quizPassed) msg.textContent = 'O 또는 X를 고르세요. 다 맞히면 다음으로 넘어갑니다.'; } }
+  function quizAnswer(i, val) {
+    if (!watch || !watch.quiz || !watch.ready || watch.quizPassed) return;
+    watch.answers[i] = val;
+    const item = document.querySelector(`.qzItem[data-i="${i}"]`); if (item) item.querySelectorAll('.qzA').forEach((b) => b.classList.toggle('on', (b.dataset.a === '1') === val));
+    if (Object.keys(watch.answers).length < watch.quiz.length) return;
+    watch.quizTries++;
+    const wrong = watch.quiz.map((q, k) => k).filter((k) => watch.answers[k] !== watch.quiz[k].a);
+    document.querySelectorAll('.qzItem').forEach((el) => { const k = Number(el.dataset.i); const why = el.querySelector('.qzWhy'); const bad = wrong.includes(k); el.classList.toggle('bad', bad); el.classList.toggle('good', !bad); why.hidden = false; why.textContent = (bad ? '✗ 아니에요 — ' : '✓ 맞아요 — ') + watch.quiz[k].why; });
+    const msg = $('#qzMsg');
+    if (wrong.length) { msg.textContent = `${wrong.length}문제가 틀렸어요. 이유를 읽고 다시 골라 주세요 (${watch.quizTries}번째 시도)`; watch.answers = {}; setTimeout(() => document.querySelectorAll('.qzItem.bad .qzA').forEach((b) => b.classList.remove('on')), 300); return; }
+    watch.quizPassed = true;
+    if (!S.trainQuiz) S.trainQuiz = {}; if (!S.trainQuiz[watch.who]) S.trainQuiz[watch.who] = {};
+    S.trainQuiz[watch.who][watch.url] = { tries: watch.quizTries, at: dateKey() }; save();
+    msg.textContent = `🎉 통과! (${watch.quizTries}번 만에) 이제 적용할 것 한 가지를 적어 주세요.`;
+    watchTick();
+    const ta = $('#msText'); if (ta) ta.focus();
   }
   function trainOpen(url) {
     const it = trainByUrl(url); if (!it) return;
@@ -4634,11 +4690,17 @@ const App = (() => {
     modal(it.title, `${id ? `<div class="ytBox"><div id="ytp"></div></div>` : `<p><a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${it.noEmbed ? '유튜브에서 열기 (외부 재생만 허용된 영상)' : '새 창에서 열기'}</a></p>`}
       <div class="wBar"><i id="wProg"></i></div><div class="hint" id="wTxt">${id ? '재생 준비 중…' : '보고 나서 아래에 적어 주세요'}</div>
       ${it.memo ? `<p class="mmemo">${esc(it.memo)}</p>` : ''}
+      ${quizOf(url) ? `<div id="qz" class="qz" hidden><div class="mlabel">📝 확인 퀴즈 — 다 맞혀야 다음으로 (${quizOf(url).length}문제)</div>
+        ${quizOf(url).map((q, i) => `<div class="qzItem" data-i="${i}"><div class="qzQ">${i + 1}. ${esc(q.q)}</div>
+          <div class="qzBtns"><button type="button" class="btn qzA" data-act="qzAns" data-i="${i}" data-a="1">O 맞다</button><button type="button" class="btn qzA" data-act="qzAns" data-i="${i}" data-a="0">X 아니다</button></div>
+          <div class="qzWhy" hidden></div></div>`).join('')}
+        <div class="hint" id="qzMsg">${quizRec(who, url) ? `전에 ${quizRec(who, url).tries}번 만에 통과했습니다. 다시 풀어도 됩니다.` : '영상을 다 보면 풀 수 있습니다.'}</div></div>` : ''}
       <div class="mlabel">🎯 <b>${esc(who)}</b>님, 내일 매장에서 적용할 것 한 가지</div>
-      <textarea id="msText" rows="2" placeholder="예: 손님 들어올 때 하던 일 멈추고 눈 맞추며 인사하기" ${id ? 'disabled' : ''}></textarea>
+      <textarea id="msText" rows="2" placeholder="예: 손님 들어올 때 하던 일 멈추고 눈 맞추며 인사하기" ${id || quizOf(url) ? 'disabled' : ''}></textarea>
       <div class="roles wrap sm" id="msCats">${MISSION_CATS.map((c) => `<button type="button" class="rl${c === cat0 ? ' on' : ''}" data-cat="${c}">${c}</button>`).join('')}</div>
       <p class="hint">이 한 줄이 이달의 <b>개인 미션</b>이 됩니다 (월 목표 ${missionGoal()}개). 해내면 "해냈어요"를 누르고 사장님 확인을 받으세요.</p>`, () => {
       if (watch && !watch.ready) { alert('영상을 90% 이상 본 뒤에 적을 수 있어요.'); return false; }
+      if (watch && watch.quiz && !watch.quizPassed) { alert('확인 퀴즈를 먼저 다 맞혀 주세요.'); return false; }
       const text = $('#msText').value.trim();
       if (text.length < 5) { alert('적용할 것을 한 줄로 조금 더 구체적으로 적어 주세요 (5자 이상).'); return false; }
       const catSel = document.querySelector('#msCats .rl.on'); const cat = catSel ? catSel.dataset.cat : cat0;
@@ -4647,10 +4709,10 @@ const App = (() => {
       watchStop();
       trainMarkDone(url, who, text);
     }, '시청 완료 · 미션 등록');
-    const ok = $('#modal').querySelector('[data-act="mOk"]'); if (ok && id) ok.disabled = true;
+    const ok = $('#modal').querySelector('[data-act="mOk"]'); if (ok && (id || quizOf(url))) ok.disabled = true;
     $('#msCats').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return; $('#msCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); });
-    watch = { player: null, dur: 0, watched: 0, last: null, playing: false, ended: false, ready: !id, timer: null, startedAt: Date.now(), fallbackSec: (it.min || 0) * 60, item: it };
-    if (!id) return;
+    watch = { player: null, dur: 0, watched: 0, last: null, playing: false, ended: false, ready: !id, timer: null, startedAt: Date.now(), fallbackSec: (it.min || 0) * 60, item: it, url, who, quiz: quizOf(url), quizPassed: false, quizTries: 0, answers: {} };
+    if (!id) { quizShow(); return; }
     loadYtApi().then((okApi) => {
       if (!watch || watch.item !== it) return;
       if (okApi && $('#ytp')) {
@@ -5126,6 +5188,7 @@ const App = (() => {
         case 'trainEdit': closeModal(); trainForm(trainList().find((t) => t.id === id)); break;
         case 'trainCat': trainCat = b.dataset.c; render(); break;
         case 'trainTab': trainTab = b.dataset.t; render(); break;
+        case 'qzAns': quizAnswer(Number(b.dataset.i), b.dataset.a === '1'); break;
         case 'jmapGo': { TRAIN_TRACKS.forEach((tr) => { openState['tr:' + tr.key] = tr.key === b.dataset.k; }); render(); const el = document.querySelector(`[data-k="tr:${b.dataset.k}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); break; }
         case 'trainWho': trainWho = b.dataset.n; render(); break;
         case 'trainOpen': trainOpen(b.dataset.u); break;

@@ -300,6 +300,17 @@ const Store = (() => {
       .subscribe();
     list.push(() => { try { supa.client.removeChannel(ch); } catch (_) { /* 무시 */ } });
   }
+  /* 다른 문서(예: 다른 매장)의 변경을 받는다 — 대시보드용. 돌려주는 함수를 부르면 구독을 끊는다 */
+  function watchDoc(k, cb) {
+    if (!supa || !supa.client) return () => {};
+    let timer = null;
+    const ch = supa.client.channel('dash-' + k.replace(/[^a-zA-Z0-9]/g, '_'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'key=eq.' + k }, () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => { try { const doc = await cloudGet(k, null); if (doc) { await localPut(k, doc); cb(doc); } } catch (_) { /* 무시 */ } }, 300);
+      }).subscribe();
+    return () => { try { supa.client.removeChannel(ch); } catch (_) { /* 무시 */ } };
+  }
   function watch(k) {
     unsubs.forEach((u) => u()); unsubs = [];
     if (!cloudOn() || !CLOUD_KEYS(k)) return;
@@ -329,7 +340,10 @@ const Store = (() => {
   }
 
   /* ── Supabase 서버 연결 ── */
-  function supaConfig() { try { supaCfg = JSON.parse(localStorage.getItem(SUPA_KEY) || 'null'); } catch (e) { supaCfg = null; } return supaCfg; }
+  /* 기본 서버 설정 — 프로젝트 주소와 publishable(공개) 키. 비밀이 아니라 앱에 넣어 둔다 (service_role 키 아님).
+     덕분에 새 기기·브라우저는 설정을 다시 입력하지 않고 매장 계정 비밀번호만 넣으면 연결된다. 설정에서 다른 값을 넣으면 그게 우선. */
+  const SUPA_DEFAULT = { url: 'https://pmkxwcdoqqjeipqmukzw.supabase.co', key: 'sb_publishable_EXY0gMpArHtuYp-XkCYLeA_BFSMhfi3' };
+  function supaConfig() { try { supaCfg = JSON.parse(localStorage.getItem(SUPA_KEY) || 'null'); } catch (e) { supaCfg = null; } if (!supaCfg || !supaCfg.url || !supaCfg.key) supaCfg = { ...SUPA_DEFAULT }; return supaCfg; }
   async function connectSupa() {
     supa = null;
     const cfg = supaConfig();
@@ -540,7 +554,7 @@ const Store = (() => {
 
   return {
     init, load, save, flush, setMeta, switchTo, dumpAll, restoreAll, loadStore, saveStore, loadShared, saveShared, watchShared,
-    supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates,
+    supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates, watchDoc,
     get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
     get mode() { return mode; },
     get ok() { return writable; },

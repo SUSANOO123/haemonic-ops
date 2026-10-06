@@ -871,12 +871,16 @@ const App = (() => {
       if (sn.msWait) urgent.push({ sid: sn.sid, cls: 'warn', text: `${tag} 🎯 미션 확인 대기 ${sn.msWait}건` });
       if (!sn.hasDay && now >= minutesOf(SLOTS[0].from)) urgent.push({ sid: sn.sid, cls: 'warn', text: `${tag} 오늘 아직 앱을 열지 않았습니다` });
     });
-    const sp = Store.supa; if (sp.configured && !sp.signedIn) urgent.push({ sid: cur, cls: 'crit', text: '서버 로그인이 풀렸습니다 — 이 기기에만 저장 중' });
+    const sp = Store.supa; if (sp.configured && !sp.signedIn) urgent.unshift({ sid: cur, cls: 'crit', text: '서버 로그인이 필요합니다 — 지금은 이 기기에만 저장되고 다른 매장이 안 보입니다' });
     h += `<div class="durgent${urgent.length ? '' : ' ok'}">${urgent.length
       ? `<div class="duh">지금 급한 것 ${urgent.length}건</div>` + urgent.slice(0, 8).map((u) => `<button class="dul ${u.cls}" data-act="dashGo" data-s="${u.sid}" data-v="${/수조/.test(u.text) ? 'tanks' : /미션/.test(u.text) ? 'training' : /서버/.test(u.text) ? 'settings' : 'today'}">${esc(u.text)}</button>`).join('')
       : `<div class="duh">✅ 두 매장 모두 지금 급한 것이 없습니다</div><div class="hint" style="margin:0">지연된 중요 업무 · 수조 · 확인 대기 미션 · 서버 상태를 봤습니다.</div>`}</div>`;
 
-    const col = (sn, st, body) => `<div class="dcol${st.id === cur ? ' me' : ''}"><div class="dcolh"><b>${esc(st.name)}</b>${st.id === cur ? '<span class="chip today">지금 보는 매장</span>' : `<button class="btn sm ghost" data-act="dashGo" data-s="${st.id}" data-v="today">이 매장 보기</button>`}</div>${sn ? body(sn) : '<div class="mut" style="padding:10px 0">서버에서 불러오는 중… (로그인이 안 돼 있으면 안 보입니다)</div>'}</div>`;
+    const noLogin = !(Store.supa && Store.supa.signedIn);
+    const col = (sn, st, body) => `<div class="dcol${st.id === cur ? ' me' : ''}"><div class="dcolh"><b>${esc(st.name)}</b>${st.id === cur ? '<span class="chip today">지금 보는 매장</span>' : `<button class="btn sm ghost" data-act="dashGo" data-s="${st.id}" data-v="today">이 매장 보기</button>`}</div>${sn ? body(sn) : (noLogin
+      ? `<div class="dnologin"><b>서버 로그인이 필요합니다</b><div class="mut">다른 매장 기록은 서버에 있습니다. 매장 공용 계정으로 한 번만 로그인하면 이 기기에서 계속 보입니다.</div><button class="btn sm primary" data-act="supaLogin">서버 로그인</button></div>`
+      : '<div class="mut" style="padding:10px 0">서버에서 불러오는 중…</div>')}</div>`;
+    dashLive();
     const kpi = (l, v, s, cls) => `<div class="dkpi${cls ? ' ' + cls : ''}"><div class="dkl">${l}</div><div class="dkv">${v}</div>${s ? `<div class="dks">${s}</div>` : ''}</div>`;
     const sec = (icon, title, v, inner) => `<section class="dsec"><div class="dhead"><h3>${icon} ${esc(title)}</h3>${v ? `<button class="btn sm ghost" data-act="view" data-v="${v}">자세히 ›</button>` : ''}</div><div class="dcmp">${inner}</div></section>`;
     const two = (body) => stores.map((st, i) => col(snaps[i], st, body)).join('');
@@ -923,6 +927,19 @@ const App = (() => {
       ${mine.length ? `<div class="dlist">${mine.slice(0, 3).map((x) => `<button class="dli linkish" data-act="issueOpen" data-id="${x.id}"><span class="chip cat">${esc(x.cat || '')}</span>${esc(x.title)} <span class="mut">${new Date(x.createdAt).toLocaleDateString('ko-KR')}</span></button>`).join('')}</div>` : '<div class="mut" style="padding:8px 0;font-size:12.5px">미해결 트러블 없음</div>'}</div>`; }).join(''));
     return h;
   }
+  /* 실시간 — 다른 매장 문서가 서버에서 바뀌면 바로 받아 다시 그린다. 대시보드를 벗어나면 구독을 끊는다. 1분마다 보조 폴링 */
+  let dashUnsubs = [], dashPoll = null, dashLiveOn = false;
+  function dashLive() {
+    if (view !== 'dash') { dashLiveOff(); return; }
+    if (dashLiveOn) return;
+    if (!(Store.supa && Store.supa.signedIn)) return;
+    dashLiveOn = true;
+    const cur = Store.meta.current;
+    (Store.meta.stores || []).forEach((st) => { if (st.id === cur) return; dashUnsubs.push(Store.watchDoc('state:' + st.id, (doc) => { if (doc && doc.templates) { dashDocs[st.id] = doc; if (view === 'dash' && $('#modal').hidden) render(); } })); });
+    dashPoll = setInterval(() => { if (view !== 'dash') { dashLiveOff(); return; } dashAt = 0; dashAsyncLoad(true); }, 60000);
+  }
+  function dashLiveOff() { dashUnsubs.forEach((u) => { try { u(); } catch (_) { /* 무시 */ } }); dashUnsubs = []; if (dashPoll) clearInterval(dashPoll); dashPoll = null; dashLiveOn = false; }
+  document.addEventListener('cloud-status', () => { if (view === 'dash') { dashLiveOff(); dashAt = 0; dashAsyncLoad(true); render(); } });
   /* 다른 매장 문서는 서버에서 받아 30초 캐시. 받으면 대시보드를 한 번 다시 그린다 */
   async function dashAsyncLoad(force) {
     if (!force && Date.now() - dashAt < 30000) return;
@@ -3624,7 +3641,7 @@ const App = (() => {
       <div class="setrow"><span>Project URL</span><input class="num wide2" data-act="supaUrl" value="${esc(sp.url || '')}" placeholder="https://xxxx.supabase.co" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
       <div class="setrow"><span>anon 키 <div class="hint">공개용 키. service_role 키는 넣지 마세요.</div></span><input type="password" class="num wide2" data-act="supaKey" value="${esc((JSON.parse(localStorage.getItem('hm.supa') || 'null') || {}).key || '')}" placeholder="eyJ…" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
       <div class="rowbtns">${sp.signedIn ? `<button class="btn" data-act="supaLogout">로그아웃</button><button class="btn ghost danger" data-act="supaClear">연결 해제</button>` : `<button class="btn primary" data-act="supaLogin"${sp.configured ? '' : ' disabled'}>로그인</button>${sp.configured ? '<button class="btn ghost danger" data-act="supaClear">설정 지우기</button>' : ''}</div>`}
-      <p class="hint">${sp.signedIn ? '이 기기의 변경은 곧바로 서버에 올라가고, 다른 기기의 변경은 1~2초 안에 이 화면에 나타납니다.' : '주소와 키를 넣으면 로그인 버튼이 켜집니다. 처음 연결하는 기기의 기록이 서버에 올라가니, 기록이 있는 기기부터 연결하세요.'}</p>`;
+      <p class="hint">${sp.signedIn ? '이 기기의 변경은 곧바로 서버에 올라가고, 다른 기기의 변경은 1~2초 안에 이 화면에 나타납니다.' : '주소와 공개 키는 기본으로 들어 있어 보통은 <b>로그인만</b> 하면 됩니다. 처음 연결하는 기기의 기록은 서버와 합쳐집니다.'}</p>`;
   }
   function supaLoginModal() {
     modal('서버 로그인 — 매장 공용 계정', `<label>이메일<input id="suE" type="email" autocomplete="username" placeholder="store@example.com"></label>
@@ -5050,7 +5067,7 @@ const App = (() => {
       const key = view === 'month' ? mdateKey() : viewKey();   // 편성 동작은 근무표에서 선택한 날짜 기준
 
       switch (a) {
-        case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } render(); window.scrollTo(0, 0); break;
+        case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;
         case 'navGroup': {   // PC 사이드바: 접기/펼치기만 (화면 이동 없음)
           toggleGroup(b.dataset.g);
           const sub = b.nextElementSibling;
@@ -5829,6 +5846,7 @@ const App = (() => {
     S = (await Store.switchTo(id)) || freshState(id);
     staffTab = null; otherDoc = null; otherDocId = null; cOpen = null; cMode = null; cFilter = 'all';
     hydrate();
+    dashLiveOff(); dashAt = 0;
     if (!MENU.some((m) => m.items.some(([k]) => k === view))) view = 'dash';   // 보고 있던 화면은 그대로 둔다
     render();
     try { loadMarketCache(); } catch (e) {}   // 다른 매장 매입 단가(시세 참조)를 새 매장 기준으로 다시 읽는다

@@ -1328,3 +1328,4 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
   .orderBar{position:static}
   #alarmBar{top:0}
 }
+.dnologin{padding:10px 12px;border-radius:8px;background:var(--crit-soft);border:1px solid var(--crit);display:flex;flex-direction:column;gap:6px;font-size:13.5px}

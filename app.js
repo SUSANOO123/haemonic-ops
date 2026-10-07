@@ -1272,6 +1272,25 @@ const App = (() => {
   }
 
   /* ── 공지사항 필독 ───────────────────────────────────────── */
+  /* 테스트 기간 피드백 기본 양식 — 게시판 글 쓰기에 자동으로 채워지고, 공지사항 필독 맨 위에도 보인다 (사장님 요청 2026-10-07) */
+  const FB_CATS = ['앱 오류', '앱 건의'];
+  const FB_TEMPLATE = [
+    '📍 어느 화면 : (예: 업무 › 할 일 › 미들)',
+    '👆 무엇을 눌렀나 : (예: "갑각류 중간체크" 완료)',
+    '❗ 어떻게 됐나 : (예: 체크됐다가 2초 뒤 풀림)',
+    '✅ 이렇게 되면 좋겠다 : ',
+    '📱 기기 : 매장 아이패드 / 내 폰(기종)',
+    '🔁 다시 해도 같은가 : 예 / 아니오 / 가끔',
+  ].join('\n');
+  function fbNotice() {
+    return `<div class="fbBox">
+      <div class="fbHead"><b>🧪 테스트 기간 — 오류·수정 요청은 이 양식으로</b><span class="chip wk">공유 게시판</span></div>
+      <p class="hint" style="margin:0 0 8px">업무 › 공유 게시판 › 글 쓰기에서 종류를 <b>앱 오류</b> 또는 <b>앱 건의</b>로 고르면 아래 칸이 자동으로 채워집니다. 괄호 안 예시를 지우고 한 줄씩만 적으면 됩니다. 이름은 익명으로 해도 됩니다.</p>
+      <pre class="fbTpl">${esc(FB_TEMPLATE)}</pre>
+      <div class="rowbtns"><button class="btn primary sm" data-act="fbNew" data-c="앱 오류">🐛 오류 신고 쓰기</button><button class="btn sm" data-act="fbNew" data-c="앱 건의">🙋 건의 쓰기</button><button class="btn sm ghost" data-act="fbCopy">양식 복사</button></div>
+      <p class="hint">제목은 한눈에 알 수 있게: "할 일 체크가 풀림", "근무표에 내 이름 없음"처럼 <b>어디 + 무엇</b>으로.</p>
+    </div>`;
+  }
   function vRules() {
     const sid = Store.meta ? Store.meta.current : 'ansan';
     const stores = Store.meta ? Store.meta.stores : [{ id: 'ansan', name: '안산점' }, { id: 'anyang', name: '안양점' }];
@@ -1298,6 +1317,7 @@ const App = (() => {
     return `<div class="hd">
       <div><h2>공지사항 필독</h2><div class="sub">시간과 무관하게 항상 지키는 것. 처음 오신 분은 여기부터 읽어주세요.</div></div>
     </div>
+    ${fbNotice()}
 
     ${POLICY_NOTE.length ? `<div class="rpolicy">
       <div class="rpHead">운영 방침 안내</div>
@@ -2221,14 +2241,14 @@ const App = (() => {
   }
 
   function issueForm(x) {
-    const isNew = !x; x = x || { cat: ISSUE_CATS[0] };
+    const isNew = !(x && x.id); x = x || { cat: ISSUE_CATS[0] };
     const curBy = x.by || (S.ui.whoDate === dateKey() ? S.ui.who : '') || '';
     modal(isNew ? '글 쓰기' : '글 수정', `
       <div class="mlabel">종류</div>
-      <div class="roles wrap" id="isCats">${ISSUE_CATS.map((c) => `<button type="button" class="rl${c === x.cat ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <div class="roles wrap" id="isCats">${[...FB_CATS, ...ISSUE_CATS].map((c) => `<button type="button" class="rl${c === x.cat ? ' on' : ''}${FB_CATS.includes(c) ? ' fb' : ''}" data-cat="${esc(c)}">${FB_CATS.includes(c) ? (c === '앱 오류' ? '🐛 ' : '🙋 ') : ''}${esc(c)}</button>`).join('')}</div>
       <input id="isCOther" placeholder="다른 종류 직접 입력" value="${x.cat && !ISSUE_CATS.includes(x.cat) ? esc(x.cat) : ''}" style="margin-top:6px">
-      <label>제목<input id="isT" value="${esc(x.title || '')}" placeholder="예: 룸2 에어컨 소음 — 손님 컴플레인"></label>
-      <label>무슨 일이 있었나요<textarea id="isB" rows="4" placeholder="상황을 그대로 적으세요. 잘잘못보다 다음에 어떻게 할지가 중요합니다.">${esc(x.body || '')}</textarea></label>
+      <label>제목<input id="isT" value="${esc(x.title || '')}" placeholder="${FB_CATS.includes(x.cat) ? '예: 할 일 체크가 풀림 (어디 + 무엇)' : '예: 룸2 에어컨 소음 — 손님 컴플레인'}"></label>
+      <label>무슨 일이 있었나요<textarea id="isB" rows="${FB_CATS.includes(x.cat) ? 8 : 4}" placeholder="상황을 그대로 적으세요. 잘잘못보다 다음에 어떻게 할지가 중요합니다.">${esc(x.body || (FB_CATS.includes(x.cat) ? FB_TEMPLATE : ''))}</textarea></label>
       <label class="chk"><input type="checkbox" id="isAnon"${x.anon ? ' checked' : ''}> 🙈 익명으로 올리기 (이름을 남기지 않습니다)</label>
       <div id="isByWrap"${x.anon ? ' hidden' : ''}><label>작성자<input id="isBy" value="${esc(curBy)}" placeholder="이름을 적어 주세요" autocomplete="off"></label>
       <div class="roles wrap sm" id="isByChips">${S.staff.filter((st) => st.active).map((st) => `<button type="button" class="rl" data-who="${esc(st.name)}">${esc(st.name)}</button>`).join('')}</div></div>
@@ -2257,7 +2277,11 @@ const App = (() => {
       }
     }, '저장');
     $('#isCats').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return;
-      $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#isCOther').value = ''; });
+      $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#isCOther').value = '';
+      // 앱 오류·건의를 고르면 본문이 비어 있거나 양식 그대로일 때 양식을 채운다 (다른 종류로 바꾸면 양식 그대로인 경우만 비운다)
+      const ta = $('#isB'), isFb = FB_CATS.includes(b.dataset.cat), raw = ta.value.trim();
+      if (isFb && (!raw || raw === FB_TEMPLATE)) { ta.value = FB_TEMPLATE; ta.rows = 8; $('#isT').placeholder = '예: 할 일 체크가 풀림 (어디 + 무엇)'; }
+      else if (!isFb && raw === FB_TEMPLATE) { ta.value = ''; ta.rows = 4; } });
     $('#isCOther').addEventListener('input', () => { if ($('#isCOther').value.trim()) $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); });
     $('#isByChips').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return; $('#isBy').value = b.dataset.who; });
     $('#isAnon').addEventListener('change', () => { $('#isByWrap').hidden = $('#isAnon').checked; });
@@ -5322,6 +5346,10 @@ const App = (() => {
           break;
         }
         case 'issueAdd': issueForm(null); break;
+        case 'fbNew': issueForm({ cat: b.dataset.c }); break;
+        case 'fbCopy': { const done = () => banner('양식을 복사했습니다', '게시판 글 쓰기나 단톡방에 붙여 넣으세요.');
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(FB_TEMPLATE).then(done).catch(() => prompt('아래 양식을 복사하세요', FB_TEMPLATE));
+          else prompt('아래 양식을 복사하세요', FB_TEMPLATE); break; }
         case 'issueOpen': issueShow(id); break;
         case 'issueEdit': closeModal(); issueForm(issuesAll().find((x) => x.id === id)); break;
         case 'issueFilter': issueFilter = b.dataset.f; render(); break;

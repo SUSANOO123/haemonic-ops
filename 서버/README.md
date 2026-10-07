@@ -6,12 +6,12 @@
 
 1. https://supabase.com → **Sign in with GitHub** → **New project**: 이름 `haemonic`, Region **Northeast Asia (Seoul)**, DB 비밀번호는 아무거나 정해 메모.
 2. 만들어지면 왼쪽 **SQL Editor** → **New query** → `supabase.sql` 내용을 통째로 붙여넣고 **Run**. "Success" 가 뜨면 끝.
-3. **Authentication → Users → Add user → Create new user**: 매장 공용 로그인 (이메일 아무거나, 비밀번호 정하기). **Auto Confirm User** 체크.
+3. **Authentication → Sign In / Providers → User Signups → Allow anonymous sign-ins** 켜고 Save. (앱이 기기마다 익명 세션을 만들어 로그인 없이 연결됩니다. 사장님 계정은 선택 — Users → Add user 로 만들 수 있음.)
 4. **Project Settings → API** 에서 **Project URL** 과 **anon public** 키 복사.
 
 ## 기기마다 하는 것 (2분)
 
-앱 → 설정 → **서버 연결** 에 Project URL 과 anon 키를 붙여넣고 → **로그인** → 3번에서 만든 이메일·비밀번호 입력.
+앱을 열기만 하면 됩니다. 주소·공개 키는 앱에 들어 있고, 3번을 켜 두면 열자마자 자동 연결됩니다 (설정 › 서버 연결 상태가 **연결됨 · 자동 연결**).
 처음 연결하는 기기의 기록이 서버에 올라가고, 그 뒤 연결하는 기기는 서버 기록을 받아 옵니다.
 **기록이 있는 기기(매장 아이패드)를 가장 먼저 연결하세요.**
 
@@ -31,7 +31,7 @@
 
 ## 알림을 서버가 보내게 하기 (한 번만)
 
-앱 설정에 텔레그램 봇 토큰·대화방이 들어 있고 서버에 로그인되어 있으면, `supabase_alerts.sql` 을 설치한 뒤부터는 알림을 서버가 보냅니다.
+앱 설정에 텔레그램 봇 토큰·대화방이 들어 있고 서버에 연결되어 있으면, `supabase_alerts.sql` 을 설치한 뒤부터는 알림을 서버가 보냅니다.
 
 1. Supabase › SQL Editor › New query
 2. `서버/supabase_alerts.sql` 내용을 통째로 붙여 넣고 Run (마지막 줄이 오늘 리포트 미리 보기로 나오면 성공)

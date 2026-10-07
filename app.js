@@ -883,7 +883,7 @@ const App = (() => {
     const noLogin0 = !(Store.supa && Store.supa.signedIn);
     const ringCls = (pct) => (pct >= 90 ? 'good' : pct >= 70 ? 'mid' : 'low');
     h += `<div class="dscore">${stores.map((st, i) => { const sn = snaps[i];
-      if (!sn) return `<div class="dsc${st.id === cur ? ' me' : ''}"><div class="dscHead"><b>${esc(st.name)}</b></div>${noLogin0 ? `<div class="dnologin"><b>서버 로그인이 필요합니다</b><div class="mut">로그인하면 이 매장 기록이 실시간으로 보입니다.</div><button class="btn sm primary" data-act="supaLogin">서버 로그인</button></div>` : '<div class="mut" style="padding:14px 0">서버에서 불러오는 중…</div>'}</div>`;
+      if (!sn) return `<div class="dsc${st.id === cur ? ' me' : ''}"><div class="dscHead"><b>${esc(st.name)}</b></div>${noLogin0 ? `<div class="dnologin"><b>서버에 연결되지 않았습니다</b><div class="mut">연결되면 이 매장 기록이 실시간으로 보입니다. 인터넷을 확인해 주세요.</div><button class="btn sm primary" data-act="supaRetry">다시 연결</button></div>` : '<div class="mut" style="padding:14px 0">서버에서 불러오는 중…</div>'}</div>`;
       const lc = sn.late.filter((x) => x.crit).length;
       const nums = [
         { n: lc, l: '중요 지연', ic: '⏰', v: 'today' }, { n: sn.late.length - lc, l: '일반 지연', ic: '⌛', v: 'today', soft: true },
@@ -900,7 +900,7 @@ const App = (() => {
 
     const noLogin = !(Store.supa && Store.supa.signedIn);
     const col = (sn, st, body) => `<div class="dcol${st.id === cur ? ' me' : ''}"><div class="dcolh"><b>${esc(st.name)}</b>${st.id === cur ? '<span class="chip today">지금 보는 매장</span>' : `<button class="btn sm ghost" data-act="dashGo" data-s="${st.id}" data-v="today">이 매장 보기</button>`}</div>${sn ? body(sn) : (noLogin
-      ? `<div class="dnologin"><b>서버 로그인이 필요합니다</b><div class="mut">다른 매장 기록은 서버에 있습니다. 매장 공용 계정으로 한 번만 로그인하면 이 기기에서 계속 보입니다.</div><button class="btn sm primary" data-act="supaLogin">서버 로그인</button></div>`
+      ? `<div class="dnologin"><b>서버에 연결되지 않았습니다</b><div class="mut">다른 매장 기록은 서버에 있습니다. 인터넷이 연결되면 자동으로 이어집니다.</div><button class="btn sm primary" data-act="supaRetry">다시 연결</button></div>`
       : '<div class="mut" style="padding:10px 0">서버에서 불러오는 중…</div>')}</div>`;
     dashLive();
     const kpi = (l, v, s, cls) => `<div class="dkpi${cls ? ' ' + cls : ''}"><div class="dkl">${l}</div><div class="dkv">${v}</div>${s ? `<div class="dks">${s}</div>` : ''}</div>`;
@@ -939,7 +939,7 @@ const App = (() => {
     const missingStore = stores.filter((st, i) => st.id !== cur && !dashDocs[st.id]).map((st) => st.name);
     h += `<section class="dsec"><div class="dhead"><h3>🏆 이달 랭킹 — 안산점 · 안양점 전 직원</h3><button class="btn sm ghost" data-act="trainBoardGo">자세히 ›</button></div>
       <div class="dreward">🎁 ${esc(reward)} <button class="btn sm ghost" data-act="rankReward">문구 고치기</button> <span class="mut">· 영상 ${POINTS.video}점 · 퀴즈 ${POINTS.quiz}점 · 코스 완주 ${POINTS.course}점 · 체크 ${POINTS.check}점(중요 ${POINTS.crit}) · 미션 등록 ${POINTS.msAdd} · 달성 ${POINTS.msDone} · 월 목표 +${POINTS.msGoal} · 같은 점수는 같은 등수</span></div>
-      ${missingStore.length ? `<div class="hint" style="margin:0 0 8px">${esc(missingStore.join(', '))} 직원은 서버 로그인 뒤에 함께 순위에 들어갑니다.</div>` : ''}
+      ${missingStore.length ? `<div class="hint" style="margin:0 0 8px">${esc(missingStore.join(', '))} 직원은 서버에 연결되면 함께 순위에 들어갑니다.</div>` : ''}
       ${rankTableAll(all)}</section>`;
 
     /* 6. 트러블 — 공용 문서, 매장별로 나눠 센다 */
@@ -1253,7 +1253,7 @@ const App = (() => {
         폴더 안의 <b>실행하기</b> 파일로 다시 열어주세요. 그래도 같으면 크롬이나 엣지로 열어보세요.</div></div>`;
     }
 
-    { const sp = Store.supa; if (sp.configured && !sp.signedIn && sp.libLoaded) h += `<div class="notice warn"><b>서버 로그인이 풀렸습니다.</b> 지금은 이 기기에만 저장됩니다. <button class="btn sm" data-act="supaLogin">로그인</button></div>`; }
+    { const sp = Store.supa; if (sp.configured && !sp.signedIn && sp.libLoaded) h += `<div class="notice warn"><b>서버에 연결되지 않았습니다.</b> 지금은 이 기기에만 저장됩니다. 인터넷을 확인하고 <button class="btn sm" data-act="supaRetry">다시 연결</button></div>`; }
     const ta = tankAlerts();
     if (isToday && ta.length) {
       h += `<button class="notice pin" data-act="view" data-v="tanks">🐟 <b>수조 ${ta.length}건 오늘 처리</b> — ${ta.map(esc).join(' · ')}</button>`;
@@ -3654,19 +3654,19 @@ const App = (() => {
   /* 설정 › 서버 연결 (Supabase 실시간 동기화) */
   function serverSettings() {
     const sp = Store.supa;
-    const state = !sp.libLoaded ? '<span class="chip missed">연결 도구를 못 불러옴 — 인터넷 확인</span>' : sp.signedIn ? `<span class="chip today">연결됨</span> <small class="mut">${esc(sp.email || '')}</small>` : sp.configured ? '<span class="chip crit">로그인 필요</span>' : '<span class="chip missed">미연결 — 이 기기에만 저장 중</span>';
+    const state = !sp.libLoaded ? '<span class="chip missed">연결 도구를 못 불러옴 — 인터넷 확인</span>' : sp.signedIn ? `<span class="chip today">연결됨</span> <small class="mut">${sp.anon ? '자동 연결 (이 기기 전용 세션)' : esc(sp.email || '')}</small>` : '<span class="chip crit">연결 안 됨 — 이 기기에만 저장 중</span>';
     return `<div class="hd sub2"><h3>서버 연결 — 실시간 동기화</h3></div>
-      <p class="hint">Supabase 서버에 연결하면 매장 아이패드 · 사장님 폰 · PC가 같은 기록을 실시간으로 봅니다. 설정 순서는 <code>서버/README.md</code>. 열쇠는 이 기기에만 저장됩니다.</p>
+      <p class="hint">앱을 열면 서버에 자동으로 연결됩니다 — 로그인이나 비밀번호가 필요 없습니다. 매장 아이패드 · 사장님 폰 · PC가 같은 기록을 실시간으로 봅니다. 아래 주소·키는 바꿀 일이 거의 없습니다.</p>
       <div class="setrow"><span>상태</span><span class="v">${state}</span></div>
       <div class="setrow"><span>Project URL</span><input class="num wide2" data-act="supaUrl" value="${esc(sp.url || '')}" placeholder="https://xxxx.supabase.co" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
       <div class="setrow"><span>anon 키 <div class="hint">공개용 키. service_role 키는 넣지 마세요.</div></span><input type="password" class="num wide2" data-act="supaKey" value="${esc((JSON.parse(localStorage.getItem('hm.supa') || 'null') || {}).key || '')}" placeholder="eyJ…" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
-      <div class="rowbtns">${sp.signedIn ? `<button class="btn" data-act="supaLogout">로그아웃</button><button class="btn ghost danger" data-act="supaClear">연결 해제</button>` : `<button class="btn primary" data-act="supaLogin"${sp.configured ? '' : ' disabled'}>로그인</button>${sp.configured ? '<button class="btn ghost danger" data-act="supaClear">설정 지우기</button>' : ''}</div>`}
-      <p class="hint">${sp.signedIn ? '이 기기의 변경은 곧바로 서버에 올라가고, 다른 기기의 변경은 1~2초 안에 이 화면에 나타납니다.' : '주소와 공개 키는 기본으로 들어 있어 보통은 <b>로그인만</b> 하면 됩니다. 처음 연결하는 기기의 기록은 서버와 합쳐집니다.'}</p>`;
+      <div class="rowbtns">${sp.signedIn ? (sp.anon ? `<button class="btn ghost" data-act="supaLogin">사장님 계정으로 로그인 (선택)</button>` : `<button class="btn" data-act="supaLogout">로그아웃 (자동 연결로 돌아감)</button>`) : `<button class="btn primary" data-act="supaRetry">다시 연결</button><button class="btn ghost" data-act="supaLogin">계정으로 로그인</button>`}</div>
+      <p class="hint">${sp.signedIn ? '이 기기의 변경은 곧바로 서버에 올라가고, 다른 기기의 변경은 1~2초 안에 이 화면에 나타납니다.' : '인터넷이 끊겼거나 서버가 잠시 응답하지 않을 때입니다. 연결되면 이 기기의 기록은 서버와 합쳐집니다.'}</p>`;
   }
   function supaLoginModal() {
     modal('서버 로그인 — 매장 공용 계정', `<label>이메일<input id="suE" type="email" autocomplete="username" placeholder="store@example.com"></label>
       <label>비밀번호<input id="suP" type="password" autocomplete="current-password"></label>
-      <p class="hint">Supabase › Authentication › Users 에서 만든 계정입니다. 기기마다 한 번만 로그인하면 계속 유지됩니다.</p>`, () => {
+      <p class="hint">보통은 필요 없습니다 — 앱은 자동으로 연결됩니다. 사장님 계정으로 구분해 두고 싶을 때만 쓰세요. 이 기기의 기록은 그대로 유지됩니다.</p>`, () => {
       const e = $('#suE').value.trim(), pw = $('#suP').value;
       if (!e || !pw) { alert('이메일과 비밀번호를 넣어 주세요.'); return false; }
       const btn = $('#modal [data-act="mOk"]'); if (btn) { btn.disabled = true; btn.textContent = '연결 중…'; }
@@ -5558,6 +5558,7 @@ const App = (() => {
         }
         case 'showReport': showReport(b.dataset.k || viewKey()); break;
         case 'supaLogin': supaLoginModal(); break;
+        case 'supaRetry': Store.flush().then(() => location.reload()); break;
         case 'supaLogout': { if (!confirm('서버 로그아웃할까요? 이 기기 기록은 남고, 동기화만 멈춥니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }
         case 'supaClear': { if (!confirm('서버 주소와 열쇠를 이 기기에서 지울까요? 기록은 남습니다.')) return; Store.supaSignOut().then(() => { Store.supaSetConfig('', ''); location.reload(); }); break; }
         case 'export': doExport(); break;

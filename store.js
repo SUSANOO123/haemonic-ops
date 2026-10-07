@@ -341,7 +341,7 @@ const Store = (() => {
 
   /* ── Supabase 서버 연결 ── */
   /* 기본 서버 설정 — 프로젝트 주소와 publishable(공개) 키. 비밀이 아니라 앱에 넣어 둔다 (service_role 키 아님).
-     덕분에 새 기기·브라우저는 설정을 다시 입력하지 않고 매장 계정 비밀번호만 넣으면 연결된다. 설정에서 다른 값을 넣으면 그게 우선. */
+     덕분에 새 기기·브라우저는 아무것도 입력하지 않아도 열자마자 서버에 연결된다(익명 세션). 설정에서 다른 값을 넣으면 그게 우선. */
   const SUPA_DEFAULT = { url: 'https://pmkxwcdoqqjeipqmukzw.supabase.co', key: 'sb_publishable_EXY0gMpArHtuYp-XkCYLeA_BFSMhfi3' };
   function supaConfig() { try { supaCfg = JSON.parse(localStorage.getItem(SUPA_KEY) || 'null'); } catch (e) { supaCfg = null; } if (!supaCfg || !supaCfg.url || !supaCfg.key) supaCfg = { ...SUPA_DEFAULT }; return supaCfg; }
   async function connectSupa() {
@@ -350,9 +350,16 @@ const Store = (() => {
     if (!cfg || !cfg.url || !cfg.key || !window.supabase || !window.supabase.createClient) return null;
     try {
       const client = window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, autoRefreshToken: true } });
-      const { data } = await client.auth.getSession();
-      if (!data || !data.session) return null;   // 설정은 있지만 로그인 전
-      supa = { client, url: cfg.url, email: data.session.user && data.session.user.email };
+      let { data } = await client.auth.getSession();
+      if (!data || !data.session) {
+        /* 로그인 전이면 서버가 기기용 익명 세션을 만들어 준다 (Supabase › Authentication › Allow anonymous sign-ins 켜 둠).
+           매장 직원이 비밀번호를 몰라도 바로 서버에 연결된다. 실패하면(인터넷 끊김 등) 이 기기에만 저장. */
+        const r = await client.auth.signInAnonymously();
+        if (r.error || !r.data || !r.data.session) { console.warn('서버 자동 연결 실패', r.error && r.error.message); return null; }
+        data = r.data;
+      }
+      const u = data.session.user || {};
+      supa = { client, url: cfg.url, email: u.email || '', anon: !!u.is_anonymous || !u.email };
       client.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { supa = null; document.dispatchEvent(new Event('cloud-status')); } });
       return supa;
     } catch (e) { cloudFail(e); return null; }
@@ -555,7 +562,7 @@ const Store = (() => {
   return {
     init, load, save, flush, setMeta, switchTo, dumpAll, restoreAll, loadStore, saveStore, loadShared, saveShared, watchShared,
     supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates, watchDoc,
-    get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
+    get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
     get mode() { return mode; },
     get ok() { return writable; },
     get label() {

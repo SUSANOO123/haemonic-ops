@@ -142,13 +142,16 @@ const App = (() => {
   const orderUnlocked = () => Date.now() - orderUnlockedAt < ORDER_UNLOCK_MS;
   const pinOk = (v) => /^\d{4,6}$/.test(v || '');
 
-  function orderUnlockModal() {
+  /* 업무 카테고리 밖(인사관리·운영·서비스 교육·회계·설정)은 사장님 PIN 으로 잠근다 (사장님 요청 2026-10-07).
+     PIN 이 아직 없으면 잠그지 않는다 — 설정에서 PIN 을 만들면 그때부터 잠긴다. 푼 뒤 10분 지나면 다시 잠김. */
+  const viewLocked = (v) => { const g = groupOf(v); return !!(g && g.lock && pinOk(S.settings.orderPin) && !orderUnlocked()); };
+  function orderUnlockModal(why) {
     if (!pinOk(S.settings.orderPin)) { orderPinModal(true); return; }
-    modal('순서 잠금 풀기', `<p class="hint" style="margin-top:0">할 일 순서를 바꾸려면 사장님 PIN 을 넣으세요. 10분 뒤 자동으로 다시 잠깁니다.</p>
+    modal('사장님 PIN', `<p class="hint" style="margin-top:0">${why || '할 일 순서를 바꾸려면 사장님 PIN 을 넣으세요.'} 10분 뒤 자동으로 다시 잠깁니다.</p>
       <label>PIN<input id="opIn" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="숫자 4~6자리"></label>`, () => {
       const v = $('#opIn').value.trim();
       if (v !== String(S.settings.orderPin)) { alert('PIN 이 다릅니다.'); return false; }
-      orderUnlockedAt = Date.now(); render();
+      orderUnlockedAt = Date.now(); render(); window.scrollTo(0, 0);
     }, '풀기');
     setTimeout(() => { const i = $('#opIn'); if (i) i.focus(); }, 50);
   }
@@ -156,8 +159,8 @@ const App = (() => {
   /* PIN 만들기·바꾸기. 처음이면 새 PIN 두 번, 이미 있으면 현재 PIN 확인 뒤 새 PIN 두 번 */
   function orderPinModal(thenUnlock) {
     const has = pinOk(S.settings.orderPin);
-    modal(has ? '순서 잠금 PIN 바꾸기' : '순서 잠금 PIN 만들기', `
-      <p class="hint" style="margin-top:0">${has ? '현재 PIN 을 확인한 뒤 새 PIN 을 넣습니다.' : '할 일 순서는 이 PIN 을 아는 사람만 바꿀 수 있습니다. 직원에게는 알려주지 마세요.'}</p>
+    modal(has ? '사장님 PIN 바꾸기' : '사장님 PIN 만들기', `
+      <p class="hint" style="margin-top:0">${has ? '현재 PIN 을 확인한 뒤 새 PIN 을 넣습니다.' : '이 PIN 을 아는 사람만 할 일 순서를 바꾸고, 인사관리·운영·서비스 교육·회계·설정 카테고리를 열 수 있습니다. 직원에게는 알려주지 마세요.'}</p>
       ${has ? `<label>현재 PIN<input id="opCur" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>` : ''}
       <label>새 PIN (숫자 4~6자리)<input id="opNew" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
       <label>새 PIN 한 번 더<input id="opNew2" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>`, () => {
@@ -167,7 +170,7 @@ const App = (() => {
       if (n !== $('#opNew2').value.trim()) { alert('두 번 넣은 PIN 이 서로 다릅니다.'); return false; }
       S.settings.orderPin = n; save();
       if (thenUnlock) orderUnlockedAt = Date.now();
-      banner(has ? 'PIN 을 바꿨습니다' : 'PIN 을 만들었습니다', thenUnlock ? '이제 손잡이(⠿)를 끌어 순서를 바꾸세요. 10분 뒤 자동으로 잠깁니다.' : '할 일 화면의 "순서 바꾸기"에서 씁니다.');
+      banner(has ? 'PIN 을 바꿨습니다' : 'PIN 을 만들었습니다', thenUnlock ? '10분 뒤 자동으로 다시 잠깁니다.' : '업무 밖 카테고리를 열 때와 할 일 "순서 바꾸기"에서 씁니다.');
       render();
     }, '저장');
   }
@@ -676,12 +679,12 @@ const App = (() => {
      g 가 null 이면 헤더 없이 바로 버튼(설정). */
   const MENU = [
     { id: 'home', items: [['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
-    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
-    { id: 'people', g: '인사관리', gs: '인사', ic: '👥', items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
-    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', items: [['buyInsight', '갑각류 매입 인사이트', '🦀'], ['issues', '트러블시트', '📝']] },
-    { id: 'kitchen', g: '서비스 교육', gs: '교육', ic: '🎓', items: [['recipes', '레시피 관리', '📖']] },
-    { id: 'acct', g: '회계', gs: '회계', ic: '💵', items: [['salesIn', '매출 입력', '🧾'], ['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
-    { id: 'sys', g: '설정', gs: '설정', ic: '⚙️', items: [['settings', '설정', '⚙️'], ['routines', '루틴', '🔁']] },
+    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['salesIn', '매출 입력', '🧾'], ['issues', '공유 게시판', '📝'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
+    { id: 'people', g: '인사관리', gs: '인사', ic: '👥', lock: true, items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
+    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', lock: true, items: [['buyInsight', '갑각류 매입 인사이트', '🦀']] },
+    { id: 'kitchen', g: '서비스 교육', gs: '교육', ic: '🎓', lock: true, items: [['recipes', '레시피 관리', '📖']] },
+    { id: 'acct', g: '회계', gs: '회계', ic: '💵', lock: true, items: [['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
+    { id: 'sys', g: '설정', gs: '설정', ic: '⚙️', lock: true, items: [['settings', '설정', '⚙️'], ['routines', '루틴', '🔁']] },
   ];
   const groupOf = (k) => MENU.find((m) => m.items.some(([x]) => x === k));
 
@@ -698,6 +701,14 @@ const App = (() => {
     saveNavOpen();
   }
 
+  function vLocked() {
+    const g = groupOf(view) || {};
+    return `<div class="hd"><div><h2>${g.ic || '🔒'} ${esc(g.g || '')}</h2><div class="sub">사장님 PIN 으로 잠겨 있습니다.</div></div></div>
+      <div class="lockBox"><div class="lockIc">🔒</div>
+        <p>이 카테고리는 사장님만 봅니다.<br><span class="mut">PIN 을 넣으면 10분 동안 열립니다. 새로고침하면 다시 잠깁니다.</span></p>
+        <button class="btn primary" data-act="viewUnlock">PIN 넣고 열기</button>
+        <button class="btn ghost" data-act="view" data-v="today">할 일로 돌아가기</button></div>`;
+  }
   function sideMenu() {
     const item = ([k, n, ic]) => `<button class="sitem${view === k ? ' on' : ''}" data-act="view" data-v="${k}"><span class="sic">${ic}</span>${n}</button>`;
     const cur = groupOf(view);
@@ -705,7 +716,7 @@ const App = (() => {
       if (!m.g) return `${i ? '<div class="sgap"></div>' : ''}<div class="shome">${m.items.map(item).join('')}</div>`;
       const open = navOpen.has(m.id), here = cur && cur.id === m.id;
       return `<button class="sgrp${open ? ' open' : ''}${here ? ' here' : ''}" data-act="navGroup" data-g="${m.id}" aria-expanded="${open}">
-          <span class="sic">${m.ic}</span><span class="sgname">${m.g}</span><span class="sgcnt">${m.items.length}</span><span class="scaret">›</span>
+          <span class="sic">${m.ic}</span><span class="sgname">${m.g}</span><span class="sgcnt">${m.lock && pinOk(S.settings.orderPin) ? (orderUnlocked() ? '🔓' : '🔒') : m.items.length}</span><span class="scaret">›</span>
         </button>
         <div class="ssub"${open ? '' : ' hidden'}>${m.items.map(item).join('')}</div>`;
     }).join('');
@@ -749,7 +760,7 @@ const App = (() => {
     const sb = $('#storebar'); if (sb) sb.innerHTML = `<div class="sstore top">${storeBtns}</div>`;
 
     const y = window.scrollY;
-    $('#main').innerHTML = ({ dash: vDash, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
+    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
     /* 지금 어느 매장 데이터를 보고 있는지 화면마다 박아둔다.
        직원·기록이 매장별로 따로인데 표시가 없으면 공유되는 것처럼 오해한다. */
     const h2 = $('#main .hd h2');
@@ -2050,8 +2061,8 @@ const App = (() => {
     if (issueCat !== 'all') list = list.filter((x) => x.cat === issueCat);
 
     let h = `<div class="hd">
-      <div><h2>트러블시트</h2><div class="sub">두 매장이 같이 보는 기록입니다. 크고 작은 일을 그날 바로 적고, 어떻게 해결했는지까지 남기세요. 같은 실수가 줄어듭니다.</div></div>
-      <button class="btn primary" data-act="issueAdd" style="margin-left:auto">+ 트러블 등록</button>
+      <div><h2>공유 게시판</h2><div class="sub">안산점·안양점이 같이 보는 게시판입니다. 트러블·건의·아이디어를 그날 바로 적고, 어떻게 했는지까지 남기세요. 이름 없이 <b>익명</b>으로도 올릴 수 있습니다.</div></div>
+      <button class="btn primary" data-act="issueAdd" style="margin-left:auto">+ 글 쓰기</button>
     </div>`;
 
     h += `<div class="rcbar">
@@ -2069,14 +2080,14 @@ const App = (() => {
     </div>`;
 
     if (!list.length) {
-      h += `<div class="notice"><b>${issueFilter === 'open' ? '진행 중인 트러블이 없습니다.' : '기록이 없습니다.'}</b>
+      h += `<div class="notice"><b>${issueFilter === 'open' ? '진행 중인 글이 없습니다.' : '글이 없습니다.'}</b>
         <div class="hint">예: "룸2 에어컨 소음 — 손님 컴플레인", "찜 시간 안내가 사람마다 다름". 잘잘못을 따지는 곳이 아니라 <b>다음에 어떻게 할지</b>를 남기는 곳입니다.</div></div>`;
     } else {
       h += list.map((x) => `<button class="icard" data-act="issueOpen" data-id="${x.id}">
         <div class="rcTop">
           <span class="ipill${x.status === 'done' ? ' done' : ''}">${x.status === 'done' ? '해결 완료' : '진행 중'}</span>
           <span class="chip store">${esc(x.store || '')}</span><span class="chip cat">${esc(x.cat)}</span>
-          <span class="rcMeta" style="margin-left:auto">${esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR')}</span>
+          <span class="rcMeta" style="margin-left:auto">${x.anon ? '🙈 익명' : esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR')}</span>
         </div>
         <div class="rcName">${esc(x.title)}</div>
         ${x.body ? `<div class="nbody">${esc(x.body.split('\n')[0])}</div>` : ''}
@@ -2089,14 +2100,15 @@ const App = (() => {
   function issueForm(x) {
     const isNew = !x; x = x || { cat: ISSUE_CATS[0] };
     const curBy = x.by || (S.ui.whoDate === dateKey() ? S.ui.who : '') || '';
-    modal(isNew ? '트러블 등록' : '트러블 수정', `
+    modal(isNew ? '글 쓰기' : '글 수정', `
       <div class="mlabel">종류</div>
       <div class="roles wrap" id="isCats">${ISSUE_CATS.map((c) => `<button type="button" class="rl${c === x.cat ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
       <input id="isCOther" placeholder="다른 종류 직접 입력" value="${x.cat && !ISSUE_CATS.includes(x.cat) ? esc(x.cat) : ''}" style="margin-top:6px">
       <label>제목<input id="isT" value="${esc(x.title || '')}" placeholder="예: 룸2 에어컨 소음 — 손님 컴플레인"></label>
       <label>무슨 일이 있었나요<textarea id="isB" rows="4" placeholder="상황을 그대로 적으세요. 잘잘못보다 다음에 어떻게 할지가 중요합니다.">${esc(x.body || '')}</textarea></label>
-      <label>작성자<input id="isBy" value="${esc(curBy)}" placeholder="이름을 적어 주세요" autocomplete="off"></label>
-      <div class="roles wrap sm" id="isByChips">${S.staff.filter((st) => st.active).map((st) => `<button type="button" class="rl" data-who="${esc(st.name)}">${esc(st.name)}</button>`).join('')}</div>
+      <label class="chk"><input type="checkbox" id="isAnon"${x.anon ? ' checked' : ''}> 🙈 익명으로 올리기 (이름을 남기지 않습니다)</label>
+      <div id="isByWrap"${x.anon ? ' hidden' : ''}><label>작성자<input id="isBy" value="${esc(curBy)}" placeholder="이름을 적어 주세요" autocomplete="off"></label>
+      <div class="roles wrap sm" id="isByChips">${S.staff.filter((st) => st.active).map((st) => `<button type="button" class="rl" data-who="${esc(st.name)}">${esc(st.name)}</button>`).join('')}</div></div>
       ${isNew ? `<label class="chk"><input type="checkbox" id="isTg" checked> 텔레그램 방에 공유 (다른 매장도 봅니다)</label>` : ''}
     `, () => {
       const title = $('#isT').value.trim();
@@ -2104,19 +2116,20 @@ const App = (() => {
       const catSel = document.querySelector('#isCats .rl.on');
       const cat = $('#isCOther').value.trim() || (catSel ? catSel.dataset.cat : '');
       if (!cat) { alert('종류를 골라 주세요.'); return false; }
-      const by = $('#isBy').value.trim();
-      if (!by) { alert('작성자를 적어 주세요.'); return false; }
+      const anon = $('#isAnon').checked;
+      const by = anon ? '' : $('#isBy').value.trim();
+      if (!anon && !by) { alert('작성자를 적거나 익명을 켜 주세요.'); return false; }
       const rec = {
         id: x.id || 'i' + Date.now(), cat, title, body: $('#isB').value.trim(),
         status: x.status || 'open', replies: x.replies || [],
-        by, createdAt: x.createdAt || Date.now(), store: x.store || storeName(), updatedAt: Date.now(),
+        by, anon, createdAt: x.createdAt || Date.now(), store: x.store || storeName(), updatedAt: Date.now(),
       };
       if (x.id) SH.issues = issuesAll().map((i2) => (i2.id === x.id ? rec : i2));
       else issuesAll().push(rec);
       saveShared(); render();
       const tg = $('#isTg');
       if (tg && tg.checked) {
-        sendTelegram(`\u{1F4DD} [${rec.store} 트러블] ${rec.cat} — ${rec.title}${rec.body ? '\n' + rec.body : ''}${rec.by ? '\n- ' + rec.by : ''}`)
+        sendTelegram(`\u{1F4DD} [${rec.store} 게시판] ${rec.cat} — ${rec.title}${rec.body ? '\n' + rec.body : ''}\n- ${rec.anon ? '익명' : rec.by}`)
           .then((r) => banner(r.ok ? '텔레그램으로 공유했습니다' : '텔레그램 전송 실패', r.ok ? rec.title : r.err));
       }
     }, '저장');
@@ -2124,6 +2137,7 @@ const App = (() => {
       $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#isCOther').value = ''; });
     $('#isCOther').addEventListener('input', () => { if ($('#isCOther').value.trim()) $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); });
     $('#isByChips').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return; $('#isBy').value = b.dataset.who; });
+    $('#isAnon').addEventListener('change', () => { $('#isByWrap').hidden = $('#isAnon').checked; });
   }
 
   function issueShow(id) {
@@ -2131,11 +2145,12 @@ const App = (() => {
     modal(x.title, `
       <div class="rcTop"><span class="ipill${x.status === 'done' ? ' done' : ''}">${x.status === 'done' ? '해결 완료' : '진행 중'}</span>
         <span class="chip store">${esc(x.store || '')}</span><span class="chip cat">${esc(x.cat)}</span>
-        <span class="opt">${esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR')}</span></div>
+        <span class="opt">${x.anon ? '🙈 익명' : esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR')}</span></div>
       ${x.body ? `<div class="rcBody">${esc(x.body)}</div>` : ''}
       ${(x.replies || []).map((r) => `<div class="irep${r.fix ? ' fix' : ''}">${r.fix ? '✅ ' : ''}${esc(r.text)}
-        <div class="rcMeta">${esc(r.by || '')} · ${new Date(r.at).toLocaleDateString('ko-KR')}</div></div>`).join('')}
-      <label>덧글 · 해결 내용<textarea id="isR" rows="2" placeholder="해본 것, 알게 된 것을 남기세요"></textarea></label>
+        <div class="rcMeta">${r.anon ? '🙈 익명' : esc(r.by || '')}${r.store ? ' · ' + esc(r.store) : ''} · ${new Date(r.at).toLocaleDateString('ko-KR')}</div></div>`).join('')}
+      <label>덧글 · 해결 내용<textarea id="isR" rows="2" placeholder="해본 것, 알게 된 것, 의견을 남기세요"></textarea></label>
+      <label class="chk"><input type="checkbox" id="isRAnon"> 🙈 익명으로 덧글</label>
       <div class="rowbtns">
         <button class="btn" data-act="issueReply" data-id="${x.id}">덧글 남기기</button>
         ${x.status === 'done'
@@ -3206,7 +3221,7 @@ const App = (() => {
 
       <div class="hd sub2"><h3>할 일 순서 잠금</h3></div>
       <div class="setrow"><span>순서 바꾸기 PIN <span class="hint" style="margin:0">사장님만 아는 숫자 4~6자리</span></span>
-        <span class="v">${pinOk(S.settings.orderPin) ? '설정됨' : '미설정'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
+        <span class="v">${pinOk(S.settings.orderPin) ? '설정됨 — 인사관리·운영·서비스 교육·회계·설정은 PIN 으로 잠김' : '미설정 — PIN 을 만들면 업무 밖 카테고리가 잠깁니다'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
       <p class="hint">할 일 화면의 순서는 기본으로 잠겨 있어 직원이 실수로 바꿀 수 없습니다. 할 일 화면 › <b>순서 바꾸기</b>에서 PIN 을 넣으면 10분 동안 손잡이(⠿)를 끌어 순서를 바꿀 수 있고, 새로고침하거나 10분이 지나면 다시 잠깁니다. 바꾼 순서는 매일 · 모든 기기에 같이 적용됩니다.</p>
 
       <div class="hd sub2"><h3>완료자 기록</h3></div>
@@ -5089,6 +5104,7 @@ const App = (() => {
 
       switch (a) {
         case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;
+        case 'viewUnlock': orderUnlockModal('이 카테고리를 열려면 사장님 PIN 을 넣으세요.'); break;
         case 'navGroup': {   // PC 사이드바: 접기/펼치기만 (화면 이동 없음)
           toggleGroup(b.dataset.g);
           const sub = b.nextElementSibling;
@@ -5188,6 +5204,7 @@ const App = (() => {
         case 'issueStoreF': issueStore = b.dataset.s; render(); break;
         case 'issueCatF': issueCat = b.dataset.c; render(); break;
         case 'issueDel': {
+          if (pinOk(S.settings.orderPin) && !orderUnlocked()) { closeModal(); orderUnlockModal('글을 지우려면 사장님 PIN 을 넣으세요.'); return; }
           if (!confirm('이 기록을 삭제할까요? 덧글도 함께 사라집니다. 두 매장 모두에서 사라집니다.')) return;
           SH.issues = issuesAll().filter((x) => x.id !== id); saveShared(); closeModal(); render(); break;
         }
@@ -5196,7 +5213,8 @@ const App = (() => {
           if (!t) { alert('내용을 입력하세요.'); return; }
           const x = issuesAll().find((i2) => i2.id === id); if (!x) return;
           x.replies = x.replies || [];
-          x.replies.push({ text: t, by: (S.ui.whoDate === dateKey() ? S.ui.who : '') || '', store: storeName(), at: Date.now() });
+          const ranon = !!($('#isRAnon') && $('#isRAnon').checked);
+          x.replies.push({ text: t, by: ranon ? '' : ((S.ui.whoDate === dateKey() ? S.ui.who : '') || ''), anon: ranon, store: storeName(), at: Date.now() });
           x.updatedAt = Date.now(); saveShared(); closeModal(); render(); issueShow(id); break;
         }
         case 'issueDone': {

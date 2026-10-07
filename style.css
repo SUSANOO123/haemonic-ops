@@ -1416,3 +1416,7 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .fbBox .rowbtns{flex-wrap:wrap}
 #isCats .rl.fb{border-color:var(--wk);color:var(--wk)}
 #isCats .rl.fb.on{background:var(--wk);border-color:var(--wk);color:#fff}
+
+/* 매출 입력 자동 합계 칸 */
+.sfIn.autoOn{background:var(--surface-2);color:var(--muted);font-weight:700}
+.autoF small.opt{color:var(--accent)}

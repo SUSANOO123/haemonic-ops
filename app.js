@@ -1587,17 +1587,21 @@ const App = (() => {
   function patternModal() {
     const pat = patternOf(), m = monthKey();
     const rows = [1, 2, 3, 4, 5, 6, 0].map((d) => `<tr><th>${WD[d]}</th>
-      <td><input data-pat="${d}:am" value="${esc((pat[d] || {}).am ? pat[d].am.join(', ') : '')}" placeholder="이름, 이름" autocomplete="off"></td>
-      <td><input data-pat="${d}:pm" value="${esc((pat[d] || {}).pm ? pat[d].pm.join(', ') : '')}" placeholder="이름, 이름" autocomplete="off"></td></tr>`).join('');
+      <td><input data-pat="${d}:am" value="${esc((pat[d] || {}).am ? pat[d].am.join(', ') : '')}" placeholder="칸 누르고 아래 이름 선택" autocomplete="off"></td>
+      <td><input data-pat="${d}:pm" value="${esc((pat[d] || {}).pm ? pat[d].pm.join(', ') : '')}" placeholder="칸 누르고 아래 이름 선택" autocomplete="off"></td></tr>`).join('');
     modal('요일별 오전·오후 조 패턴', `
-      <p class="hint" style="margin-top:0">매주 같은 사람이 나오는 기본 패턴입니다. 이름은 쉼표로 나눠 적으세요. 오후 조는 <b>${esc(S.settings.pmStart || '17:00')}</b>부터입니다 (설정 › 인원 기준에서 변경).</p>
+      <p class="hint" style="margin-top:0">매주 같은 사람이 나오는 기본 패턴입니다. <b>표의 칸을 누른 뒤 아래 이름을 누르면</b> 들어가고, 다시 누르면 빠집니다. 오후 조는 <b>${esc(S.settings.pmStart || '17:00')}</b>부터입니다 (설정 › 인원 기준에서 변경).</p>
       <div class="tkLogWrap"><table class="tkLog patTbl"><thead><tr><th>요일</th><th>오전 조</th><th>오후 조 (${esc(S.settings.pmStart || '17:00')}~)</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="mlabel" id="patTargetLbl">넣을 칸: 표에서 요일·조 칸을 누르세요</div>
+      ${crewChips(null, null)}
       <label class="chk" style="margin-top:10px"><input type="checkbox" id="patOver"> 이미 배치된 날도 패턴으로 덮어쓰기 (병원·대체 같은 예외가 지워집니다)</label>
       <div class="rowbtns" style="margin-top:8px"><button type="button" class="btn primary" data-act="patFill">${monthLabel(m)} 채우기</button>
         <button type="button" class="btn" data-act="patFillNext">${monthLabel(monthShiftKey(m, 1))}도 채우기</button></div>
       <p class="hint">채운 뒤 병원·대체 근무 같은 예외는 달력에서 날짜를 누르고 <b>오전·오후 조 편집</b>으로 고치면 됩니다.</p>`, () => {
       readPattern(); save(); render();
     }, '패턴만 저장');
+    bindCrewPicker($('#modal .mbody'), '[data-pat]');
+    $('#modal .mbody').addEventListener('focusin', (e) => { const inp = e.target.closest('[data-pat]'); if (!inp) return; const [d, k] = inp.dataset.pat.split(':'); $('#patTargetLbl').textContent = `넣을 칸: ${WD[d]}요일 ${k === 'am' ? '오전' : '오후'} 조`; });
   }
   function readPattern() {
     const pat = patternOf();
@@ -1606,18 +1610,58 @@ const App = (() => {
       pat[d] = pat[d] || { am: [], pm: [] }; pat[d][k] = splitNames(inp.value);
     });
   }
+  /* 직원 칩 선택기 — 이름을 타이핑하지 않고 명단에서 눌러 넣는다 (사장님 요청 2026-10-07).
+     data-for 가 있으면 그 입력칸에, 없으면 마지막으로 누른(포커스한) 입력칸에 이름을 넣고 뺀다. */
+  const roleShort = (r) => ({ '갑각류 관리자': '관리', '관리자': '관리', '홀': '홀', '주방': '주방' })[r] || (r || '').slice(0, 2);
+  function crewChips(forId, date) {
+    const list = S.staff.filter((st) => st.active && st.name);
+    if (!list.length) return `<p class="hint">직원 명단이 비어 있습니다. 인사관리 › 직원 명단에 등록하면 여기서 눌러 넣을 수 있습니다.</p>`;
+    return `<div class="roles wrap sm cpRow"${forId ? ` data-for="${forId}"` : ''}>${list.map((st) => {
+      const off = date ? isOffDay(st, date) : false;
+      return `<button type="button" class="rl cp${off ? ' off' : ''}" data-name="${esc(st.name)}" title="${off ? '고정 휴무일' : ''}">${esc(st.name)}${(st.roles || []).length ? `<small>${esc(roleShort(st.roles[0]))}</small>` : ''}${off ? '<small>휴</small>' : ''}</button>`;
+    }).join('')}</div>`;
+  }
+  function bindCrewPicker(root, inputSel) {
+    root = root || $('#modal .mbody');   // .mbody 는 모달을 열 때마다 새로 만들어져 리스너가 쌓이지 않는다
+    let target = null;
+    const inputs = () => [...root.querySelectorAll(inputSel)];
+    const syncRow = (row) => {
+      const inp = row.dataset.for ? root.querySelector('#' + row.dataset.for) : target;
+      const names = inp ? splitNames(inp.value) : [];
+      row.querySelectorAll('.cp').forEach((c) => c.classList.toggle('on', names.includes(c.dataset.name)));
+      row.classList.toggle('noTarget', !inp);
+    };
+    const syncAll = () => root.querySelectorAll('.cpRow').forEach(syncRow);
+    root.addEventListener('focusin', (e) => { const inp = e.target.closest(inputSel); if (!inp) return; target = inp; inputs().forEach((i) => i.classList.toggle('cpTarget', i === inp)); syncAll(); });
+    root.addEventListener('input', (e) => { if (e.target.closest(inputSel)) syncAll(); });
+    root.addEventListener('click', (e) => {
+      const c = e.target.closest('.cp'); if (!c) return;
+      const row = c.closest('.cpRow');
+      const inp = row.dataset.for ? root.querySelector('#' + row.dataset.for) : target;
+      if (!inp) { banner('먼저 넣을 칸을 누르세요', '표에서 요일·조 칸을 한 번 누른 뒤 이름을 누르면 들어갑니다.'); return; }
+      let names = splitNames(inp.value);
+      names = names.includes(c.dataset.name) ? names.filter((n) => n !== c.dataset.name) : [...names, c.dataset.name];
+      inp.value = names.join(', ');
+      syncAll();
+    });
+    syncAll();
+  }
+
   function shiftDayModal(date) {
     const sp = dayCrewSplit(date) || { am: [], pm: [] };
     const d = new Date(date + 'T00:00:00');
     modal(`${mdLabel(date)} ${WD[d.getDay()]}요일 — 오전·오후 조`, `
-      <label>오전 조<input id="sdAm" value="${esc(sp.am.join(', '))}" placeholder="이름, 이름" autocomplete="off"></label>
-      <label>오후 조 (${esc(S.settings.pmStart || '17:00')}~)<input id="sdPm" value="${esc(sp.pm.join(', '))}" placeholder="이름, 이름" autocomplete="off"></label>
-      <p class="hint">저장하면 이 날의 구간별 배치를 통째로 다시 만듭니다. 오픈 업무는 오전 조 인원, 미들·마감 업무는 오후 조 인원 기준으로 담당이 정해집니다.</p>`, () => {
+      <label>오전 조<input id="sdAm" value="${esc(sp.am.join(', '))}" placeholder="아래 이름을 누르거나 직접 입력" autocomplete="off"></label>
+      ${crewChips('sdAm', date)}
+      <label>오후 조 (${esc(S.settings.pmStart || '17:00')}~)<input id="sdPm" value="${esc(sp.pm.join(', '))}" placeholder="아래 이름을 누르거나 직접 입력" autocomplete="off"></label>
+      ${crewChips('sdPm', date)}
+      <p class="hint">이름을 누르면 들어가고 다시 누르면 빠집니다. 명단에 없는 사람은 칸에 직접 적어도 됩니다. 저장하면 이 날의 구간별 배치를 통째로 다시 만듭니다. 오픈 업무는 오전 조 인원, 미들·마감 업무는 오후 조 인원 기준으로 담당이 정해집니다.</p>`, () => {
       const am = splitNames($('#sdAm').value), pm = splitNames($('#sdPm').value);
       applyShiftDay(date, am, pm);
       logSched(`${mdLabel(date)} 오전 ${am.length}명 · 오후 ${pm.length}명 편성`);
       save(); render();
     }, '저장');
+    bindCrewPicker($('#modal .mbody'), '#sdAm, #sdPm');
   }
 
   let rtScope = 'all';

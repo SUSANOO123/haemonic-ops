@@ -1372,3 +1372,12 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
 .lockBox .lockIc{font-size:44px;margin-bottom:8px}
 .lockBox p{margin:0 0 16px;line-height:1.6}
 .lockBox .btn{margin:4px}
+
+/* 근무표 직원 칩 선택기 */
+.cpRow{margin:6px 0 10px}
+.cpRow .cp small{display:inline-block;margin-left:4px;opacity:.65;font-size:11px}
+.cpRow .cp.off{opacity:.55;border-style:dashed}
+.cpRow .cp.on small{opacity:.85}
+.cpRow.noTarget .cp{opacity:.45}
+input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
+.patTbl input{min-width:150px}

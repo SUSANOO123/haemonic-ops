@@ -269,6 +269,13 @@ const Store = (() => {
     ['days', 'sales', 'roster', 'sched', 'payroll', 'hygiene', 'blobs'].forEach((f) => {
       const v = unionObj(newer[f], older[f], f === 'days' ? mergeDay : null); if (v !== undefined) out[f] = v;
     });
+    /* 설정은 최신 쪽이 이기되, 최신 쪽에 비어 있는 값(봇 토큰·대화방·PIN 등)은 예전 값을 지우지 않는다.
+       (2026-10-07 안산점 토큰이 새 기기 연결 때 빈 값으로 덮인 사고 뒤 추가) */
+    if (newer.settings || older.settings) {
+      const ns = newer.settings || {}, os = older.settings || {};
+      out.settings = { ...os, ...ns };
+      Object.keys(os).forEach((key) => { const v = ns[key]; if ((v === '' || v === null || v === undefined) && os[key] !== '' && os[key] != null) out.settings[key] = os[key]; });
+    }
     out.routineVer = Math.max(newer.routineVer || 0, older.routineVer || 0) || undefined;
     if (out.routineVer === undefined) delete out.routineVer;
     return out;

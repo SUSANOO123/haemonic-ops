@@ -680,7 +680,7 @@ const App = (() => {
   /* 왼쪽 메뉴: 대카테고리(g) 아래 하위 메뉴(items). 대카테고리를 누르면 접었다 펼친다.
      g 가 null 이면 헤더 없이 바로 버튼(설정). */
   const MENU = [
-    { id: 'home', items: [['dash', '대시보드', '🧭'], ['guide', '테스트 안내', '📋']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
+    { id: 'home', items: [['guide', '테스트 안내', '📋'], ['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭', main: 'dash', hot: 'guide' },   // 테스트 안내가 맨 위, 첫 화면은 대시보드   // 카테고리 없이 맨 위 단독 항목
     { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['salesIn', '매출 입력', '🧾'], ['issues', '공유 게시판', '📝'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
     { id: 'people', g: '인사관리', gs: '인사', ic: '👥', lock: true, items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
     { id: 'ops', g: '운영', gs: '운영', ic: '🏪', lock: true, items: [['buyInsight', '갑각류 매입 인사이트', '🦀']] },
@@ -789,24 +789,24 @@ const App = (() => {
         <button class="btn ghost" data-act="view" data-v="today">할 일로 돌아가기</button></div>`;
   }
   function sideMenu() {
-    const item = ([k, n, ic]) => `<button class="sitem${view === k ? ' on' : ''}" data-act="view" data-v="${k}"><span class="sic">${ic}</span>${n}</button>`;
     const cur = groupOf(view);
+    const item = (m) => ([k, n, ic]) => `<button class="sitem${view === k ? ' on' : ''}${m.hot === k ? ' hot' : ''}" data-act="view" data-v="${k}"><span class="sic">${ic}</span>${n}${m.hot === k ? '<span class="hotTag">필독</span>' : ''}</button>`;
     return MENU.map((m, i) => {
-      if (!m.g) return `${i ? '<div class="sgap"></div>' : ''}<div class="shome">${m.items.map(item).join('')}</div>`;
+      if (!m.g) return `${i ? '<div class="sgap"></div>' : ''}<div class="shome">${m.items.map(item(m)).join('')}</div>`;
       const open = navOpen.has(m.id), here = cur && cur.id === m.id;
       return `<button class="sgrp${open ? ' open' : ''}${here ? ' here' : ''}" data-act="navGroup" data-g="${m.id}" aria-expanded="${open}">
           <span class="sic">${m.ic}</span><span class="sgname">${m.g}</span><span class="sgcnt">${m.lock ? (ownerOn() ? '🔓' : '🔒') : m.items.length}</span><span class="scaret">›</span>
         </button>
-        <div class="ssub"${open ? '' : ' hidden'}>${m.items.map(item).join('')}</div>`;
+        <div class="ssub"${open ? '' : ' hidden'}>${m.items.map(item(m)).join('')}</div>`;
     }).join('');
   }
 
   /* 모바일 상단: 1줄은 대카테고리, 2줄은 선택한 대카테고리의 하위 메뉴 */
   function topNav() {
     const cur = groupOf(view);
-    const gs = MENU.map((m) => `<button class="tab g${cur === m ? ' on' : ''}" data-act="${m.g ? 'navGroupM' : 'view'}" data-g="${m.id}" data-v="${m.g ? '' : m.items[0][0]}">${m.ic || '⚙️'} ${m.gs || m.g || '설정'}</button>`).join('');
+    const gs = MENU.map((m) => `<button class="tab g${cur === m ? ' on' : ''}" data-act="${m.g ? 'navGroupM' : 'view'}" data-g="${m.id}" data-v="${m.g ? '' : (m.main || m.items[0][0])}">${m.ic || '⚙️'} ${m.gs || m.g || '설정'}</button>`).join('');
     const subs = cur && (cur.g || cur.items.length > 1) ? `<div class="navs">${cur.items.map(([k, n, ic]) =>
-      `<button class="tab s${view === k ? ' on' : ''}" data-act="view" data-v="${k}">${ic} ${n}</button>`).join('')}</div>` : '';
+      `<button class="tab s${view === k ? ' on' : ''}${cur.hot === k ? ' hot' : ''}" data-act="view" data-v="${k}">${ic} ${n}</button>`).join('')}</div>` : '';
     return `<div class="navg">${gs}</div>${subs}`;
   }
 
@@ -5238,7 +5238,7 @@ const App = (() => {
         }
         case 'navGroupM': {  // 모바일 상단: 대카테고리를 누르면 첫 하위 화면으로 이동 → 2줄에 하위 메뉴가 뜬다
           const m = MENU.find((x) => x.id === b.dataset.g);
-          if (m) { view = m.items[0][0]; render(); window.scrollTo(0, 0); }
+          if (m) { view = m.main || m.items[0][0]; render(); window.scrollTo(0, 0); }
           break;
         }
         case 'dateGo': {

@@ -1400,3 +1400,11 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .gTpl{background:var(--surface);border:1px dashed var(--rule);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.7}
 .card.gOk{border-color:var(--ok);background:var(--ok-soft)}
 .card.gNo{border-color:var(--crit);background:var(--crit-soft)}
+
+/* 메뉴 강조 항목 (테스트 안내) */
+.sitem.hot{font-weight:700;color:var(--crit);background:var(--crit-soft);border-left:3px solid var(--crit)}
+.sitem.hot.on{background:var(--crit);color:#fff;border-left-color:var(--crit)}
+.hotTag{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:999px;background:var(--crit);color:#fff}
+.sitem.hot.on .hotTag{background:#fff;color:var(--crit)}
+.tab.s.hot{font-weight:700;color:var(--crit);background:var(--crit-soft)}
+.tab.s.hot.on{background:var(--crit);color:#fff}

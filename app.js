@@ -722,6 +722,7 @@ const App = (() => {
       ${ownerOn() ? `<button class="btn sm" data-act="guideEdit" style="margin-left:auto">일정 고치기</button>` : ''}
     </div>
     ${cur ? `<div class="notice pin"><b>지금은 ${cur.n} 테스트 기간입니다 (${mdShort(cur.from)}~${mdShort(cur.to)}).</b> 이번 회차에서 보는 것: ${esc(cur.focus)}</div>` : ''}
+    ${fbNotice()}
     <div class="guide">
       <p class="lead">새 업무 앱을 매장에서 실제로 써 보는 기간입니다. 목적은 하나입니다. <b>여러분이 쓰기 불편한 것과 잘못 움직이는 것을 찾아서 고치는 것.</b> 잘하고 못하고를 보는 자리가 아닙니다.</p>
 
@@ -751,8 +752,7 @@ const App = (() => {
       </div>
 
       <h3>신고하는 법</h3>
-      <p>업무 › <b>공유 게시판</b> › <b>글 쓰기</b>. 종류는 "다른 종류 직접 입력"에 <span class="chip wk">앱 오류</span> 또는 <span class="chip wk">앱 건의</span>라고 적어 주세요. 안산·안양 둘 다 같은 게시판을 봅니다.</p>
-      <div class="gTpl"><div><b>어느 화면</b> : 예) 업무 › 할 일 › 미들</div><div><b>무엇을 했는데</b> : 예) "갑각류 중간체크" 완료를 눌렀는데</div><div><b>어떻게 됐나</b> : 예) 체크가 됐다가 2초 뒤에 풀림</div><div><b>기기</b> : 예) 매장 아이패드 / 내 폰(갤럭시)</div></div>
+      <p>이 페이지 맨 위의 <b>🐛 오류 신고 쓰기</b> / <b>🙋 건의 쓰기</b> 버튼을 누르면 양식이 채워진 글 쓰기 창이 열립니다. 업무 › 공유 게시판에서 종류를 <span class="chip wk">앱 오류</span> · <span class="chip wk">앱 건의</span>로 골라도 같습니다. 안산·안양 둘 다 같은 게시판을 봅니다.</p>
       <div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="issues">공유 게시판 열기</button></div>
       <p class="hint">화면 캡처가 있으면 매장 단톡방에 올려 주세요. 급한 건(아예 안 열림 등)은 바로 사장님께 전화나 톡으로.</p>
 
@@ -1284,7 +1284,7 @@ const App = (() => {
   ].join('\n');
   function fbNotice() {
     return `<div class="fbBox">
-      <div class="fbHead"><b>🧪 테스트 기간 — 오류·수정 요청은 이 양식으로</b><span class="chip wk">공유 게시판</span></div>
+      <div class="fbHead"><b>🧪 오류·수정 요청은 이 양식으로</b><span class="chip wk">공유 게시판에 올라갑니다</span></div>
       <p class="hint" style="margin:0 0 8px">업무 › 공유 게시판 › 글 쓰기에서 종류를 <b>앱 오류</b> 또는 <b>앱 건의</b>로 고르면 아래 칸이 자동으로 채워집니다. 괄호 안 예시를 지우고 한 줄씩만 적으면 됩니다. 이름은 익명으로 해도 됩니다.</p>
       <pre class="fbTpl">${esc(FB_TEMPLATE)}</pre>
       <div class="rowbtns"><button class="btn primary sm" data-act="fbNew" data-c="앱 오류">🐛 오류 신고 쓰기</button><button class="btn sm" data-act="fbNew" data-c="앱 건의">🙋 건의 쓰기</button><button class="btn sm ghost" data-act="fbCopy">양식 복사</button></div>
@@ -1317,7 +1317,6 @@ const App = (() => {
     return `<div class="hd">
       <div><h2>공지사항 필독</h2><div class="sub">시간과 무관하게 항상 지키는 것. 처음 오신 분은 여기부터 읽어주세요.</div></div>
     </div>
-    ${fbNotice()}
 
     ${POLICY_NOTE.length ? `<div class="rpolicy">
       <div class="rpHead">운영 방침 안내</div>

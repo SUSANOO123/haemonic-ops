@@ -680,7 +680,7 @@ const App = (() => {
   /* 왼쪽 메뉴: 대카테고리(g) 아래 하위 메뉴(items). 대카테고리를 누르면 접었다 펼친다.
      g 가 null 이면 헤더 없이 바로 버튼(설정). */
   const MENU = [
-    { id: 'home', items: [['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
+    { id: 'home', items: [['dash', '대시보드', '🧭'], ['guide', '테스트 안내', '📋']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
     { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['salesIn', '매출 입력', '🧾'], ['issues', '공유 게시판', '📝'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
     { id: 'people', g: '인사관리', gs: '인사', ic: '👥', lock: true, items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
     { id: 'ops', g: '운영', gs: '운영', ic: '🏪', lock: true, items: [['buyInsight', '갑각류 매입 인사이트', '🦀']] },
@@ -703,6 +703,83 @@ const App = (() => {
     saveNavOpen();
   }
 
+  /* ── 테스트 기간 안내 (대시보드 아래 단독 페이지, 사장님 요청 2026-10-07) ──
+     일정은 매장 문서 settings.testRounds[3] = { from, to } 에 저장 — 매장마다 다르다. 사장님 모드에서만 고친다. */
+  const GUIDE_ROUNDS = [
+    { n: '1차', focus: '할 일 체크가 하루 흐름에 맞는지, 시간·담당이 실제와 같은지' },
+    { n: '2차', focus: '1차에서 고친 것이 잘 됐는지, 수조·매출 입력과 교육 영상' },
+    { n: '3차', focus: '마감 리포트·근무표까지 전체, 이대로 계속 쓸 수 있는지' },
+  ];
+  const guideRounds = () => { const r = (S.settings.testRounds || []); return GUIDE_ROUNDS.map((g, i) => ({ ...g, from: (r[i] || {}).from || '', to: (r[i] || {}).to || '' })); };
+  const mdShort = (k) => (k ? `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}` : '');
+  function vGuide() {
+    const rounds = guideRounds();
+    const dateCell = (r) => (r.from || r.to) ? `<b>${mdShort(r.from)} ~ ${mdShort(r.to)}</b>` : '<span class="mut">미정</span>';
+    const now = dateKey();
+    const cur = rounds.find((r) => r.from && r.to && r.from <= now && now <= r.to);
+    return `<div class="hd">
+      <div><h2>📋 테스트 기간 안내 — ${esc(storeName())}</h2><div class="sub">3일씩 세 번, 같이 써 보고 고칩니다. 평소처럼 일하면서 앱이 거슬리는 순간만 알려 주세요.</div></div>
+      ${ownerOn() ? `<button class="btn sm" data-act="guideEdit" style="margin-left:auto">일정 고치기</button>` : ''}
+    </div>
+    ${cur ? `<div class="notice pin"><b>지금은 ${cur.n} 테스트 기간입니다 (${mdShort(cur.from)}~${mdShort(cur.to)}).</b> 이번 회차에서 보는 것: ${esc(cur.focus)}</div>` : ''}
+    <div class="guide">
+      <p class="lead">새 업무 앱을 매장에서 실제로 써 보는 기간입니다. 목적은 하나입니다. <b>여러분이 쓰기 불편한 것과 잘못 움직이는 것을 찾아서 고치는 것.</b> 잘하고 못하고를 보는 자리가 아닙니다.</p>
+
+      <h3>언제</h3>
+      <div class="tkLogWrap"><table class="tkLog gTbl"><thead><tr><th>회차</th><th>${esc(storeName())} 날짜</th><th>이번 회차에서 보는 것</th></tr></thead>
+      <tbody>${rounds.map((r) => `<tr><td><b>${r.n}</b> (3일)</td><td>${dateCell(r)}</td><td>${esc(r.focus)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="hint">매장 아이패드와 본인 폰 어느 쪽에서 열어도 같은 기록이 보입니다. 로그인은 필요 없습니다.</p>
+
+      <h3>매일 이렇게 해 주세요</h3>
+      <ol class="gSteps">
+        <li><div><b>출근하면 앱을 열고 왼쪽 아래 "지금 누구세요?"에서 내 이름을 누릅니다.</b><div class="mut">이름을 안 고르면 누가 했는지 남지 않습니다. 내 이름이 없으면 바로 사장님께 말해 주세요.</div></div></li>
+        <li><div><b>업무 › 할 일에서, 끝낸 업무는 그 자리에서 바로 체크합니다.</b><div class="mut">퇴근 전에 몰아서 체크하면 테스트가 안 됩니다. 못 한 업무는 건너뜀을 누르고 이유를 한 줄 적어 주세요.</div></div></li>
+        <li><div><b>숫자가 들어가는 칸은 그날 실제 숫자를 넣습니다.</b><div class="mut">수조 수온·염도, 폐사 마릿수, 매출 kg(매장·배달). 대충 넣으면 오류인지 입력 실수인지 구분이 안 됩니다.</div></div></li>
+        <li><div><b>하루 한 편, 업무 › 교육 자료에서 영상을 보고 "내일 적용할 것 한 줄"을 적습니다.</b><div class="mut">90% 이상 재생돼야 완료로 잡힙니다. 완료가 안 찍히면 그것도 신고 대상입니다.</div></div></li>
+        <li><div><b>거슬리는 게 있으면 그때그때 업무 › 공유 게시판에 적습니다.</b><div class="mut">아래 양식대로 한 줄이면 충분합니다. 이름을 남기기 싫으면 익명으로 올려도 됩니다.</div></div></li>
+        <li><div><b>3일이 끝나는 날, 10분 미팅에서 두 가지만 말해 주세요.</b><div class="mut">"제일 불편했던 것 하나"와 "그래도 편했던 것 하나".</div></div></li>
+      </ol>
+
+      <h3>특히 이런 걸 찾아 주세요</h3>
+      <div class="gTwo">
+        <div class="card"><b>🐛 오류 같은 것</b><ul>
+          <li>버튼을 눌렀는데 아무 반응이 없다</li><li>체크했는데 다른 사람 기기에서는 안 보인다</li><li>한 번 눌렀는데 두 번 체크되거나 체크가 풀린다</li>
+          <li>화면이 깨지거나 글자가 잘린다 (특히 폰)</li><li>내 이름·역할이 없거나 다르게 나온다</li><li>텔레그램 알림이 안 오거나 두 번 온다</li><li>영상이 안 열리거나 완료가 안 찍힌다</li></ul></div>
+        <div class="card"><b>🙋 불편한 것 · 바꾸면 좋을 것</b><ul>
+          <li>할 일 시간이 실제 하는 시간과 다르다</li><li>담당이 오픈·미들·마감 실제 인원과 안 맞는다</li><li>없는 업무가 있거나, 있는데 빠진 업무가 있다</li>
+          <li>업무 이름이 현장에서 쓰는 말과 다르다</li><li>누르는 횟수가 너무 많다, 글씨가 작다</li><li>이 기능은 없어도 되겠다 / 이게 있으면 좋겠다</li></ul></div>
+      </div>
+
+      <h3>신고하는 법</h3>
+      <p>업무 › <b>공유 게시판</b> › <b>글 쓰기</b>. 종류는 "다른 종류 직접 입력"에 <span class="chip wk">앱 오류</span> 또는 <span class="chip wk">앱 건의</span>라고 적어 주세요. 안산·안양 둘 다 같은 게시판을 봅니다.</p>
+      <div class="gTpl"><div><b>어느 화면</b> : 예) 업무 › 할 일 › 미들</div><div><b>무엇을 했는데</b> : 예) "갑각류 중간체크" 완료를 눌렀는데</div><div><b>어떻게 됐나</b> : 예) 체크가 됐다가 2초 뒤에 풀림</div><div><b>기기</b> : 예) 매장 아이패드 / 내 폰(갤럭시)</div></div>
+      <div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="issues">공유 게시판 열기</button></div>
+      <p class="hint">화면 캡처가 있으면 매장 단톡방에 올려 주세요. 급한 건(아예 안 열림 등)은 바로 사장님께 전화나 톡으로.</p>
+
+      <h3>걱정 안 하셔도 되는 것</h3>
+      <div class="card gOk"><ul>
+        <li><b>실수로 잘못 눌러도 괜찮습니다.</b> 다시 누르면 풀리고, 지워진 건 사장님이 복구할 수 있습니다.</li>
+        <li><b>점수·배지는 테스트 기간엔 참고만</b> 합니다. 등수로 뭘 하지 않습니다.</li>
+        <li>앱이 안 열리면 평소대로 일하고, 나중에 "안 열렸다"고만 알려 주세요.</li></ul></div>
+      <h3>이것만 지켜 주세요</h3>
+      <div class="card gNo"><ul>
+        <li><b>남의 이름으로 체크하지 않기.</b> 대신 해 줬으면 본인 이름으로 체크하고 메모에 적습니다.</li>
+        <li><b>"테스트니까" 가짜로 체크하지 않기.</b> 실제로 한 것만 체크해야 뭐가 잘못됐는지 보입니다.</li>
+        <li><b>사장님 로그인 창에 손대지 않기.</b> 잠긴 메뉴는 사장님만 봅니다. 직원은 로그인 없이 업무 메뉴를 그대로 쓰면 됩니다.</li>
+        <li><b>앱 주소를 외부에 공유하지 않기.</b> 매장 기록이 들어 있습니다.</li></ul></div>
+
+      <h3>이 기간이 끝나면</h3>
+      <p>세 번의 테스트에서 나온 의견을 모아 앱을 고치고, 무엇을 반영했고 무엇은 왜 못 했는지 공유 게시판에 올립니다. 여러분이 적어 준 한 줄이 그대로 다음 버전이 됩니다. 고맙습니다.</p>
+    </div>`;
+  }
+  function guideEditModal() {
+    const rounds = guideRounds();
+    modal(`테스트 일정 — ${storeName()}`, `<p class="hint" style="margin-top:0">회차마다 시작일·마지막일을 넣으세요. 이 매장에만 저장됩니다 (안양점은 안양점에서 따로).</p>
+      ${rounds.map((r, i) => `<div class="setrow"><span>${r.n}</span><span class="v"><input type="date" id="gr${i}a" value="${r.from}"> ~ <input type="date" id="gr${i}b" value="${r.to}"></span></div>`).join('')}`, () => {
+      S.settings.testRounds = rounds.map((r, i) => ({ from: $('#gr' + i + 'a').value || '', to: $('#gr' + i + 'b').value || '' }));
+      save(); render();
+    }, '저장');
+  }
   function vLocked() {
     const g = groupOf(view) || {};
     return `<div class="hd"><div><h2>${g.ic || '🔒'} ${esc(g.g || '')}</h2><div class="sub">사장님 계정으로 로그인해야 보입니다.</div></div></div>
@@ -728,7 +805,7 @@ const App = (() => {
   function topNav() {
     const cur = groupOf(view);
     const gs = MENU.map((m) => `<button class="tab g${cur === m ? ' on' : ''}" data-act="${m.g ? 'navGroupM' : 'view'}" data-g="${m.id}" data-v="${m.g ? '' : m.items[0][0]}">${m.ic || '⚙️'} ${m.gs || m.g || '설정'}</button>`).join('');
-    const subs = cur && cur.g ? `<div class="navs">${cur.items.map(([k, n, ic]) =>
+    const subs = cur && (cur.g || cur.items.length > 1) ? `<div class="navs">${cur.items.map(([k, n, ic]) =>
       `<button class="tab s${view === k ? ' on' : ''}" data-act="view" data-v="${k}">${ic} ${n}</button>`).join('')}</div>` : '';
     return `<div class="navg">${gs}</div>${subs}`;
   }
@@ -762,7 +839,7 @@ const App = (() => {
     const sb = $('#storebar'); if (sb) sb.innerHTML = `<div class="sstore top">${storeBtns}</div>`;
 
     const y = window.scrollY;
-    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
+    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
     /* 지금 어느 매장 데이터를 보고 있는지 화면마다 박아둔다.
        직원·기록이 매장별로 따로인데 표시가 없으면 공유되는 것처럼 오해한다. */
     const h2 = $('#main .hd h2');
@@ -5151,6 +5228,7 @@ const App = (() => {
       switch (a) {
         case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;
         case 'viewUnlock': orderUnlockModal('이 카테고리를 열려면 사장님 PIN 을 넣으세요.'); break;
+        case 'guideEdit': guideEditModal(); break;
         case 'navGroup': {   // PC 사이드바: 접기/펼치기만 (화면 이동 없음)
           toggleGroup(b.dataset.g);
           const sub = b.nextElementSibling;

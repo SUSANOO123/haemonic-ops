@@ -1383,3 +1383,20 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .patTbl input{min-width:150px}
 
 .ownerBtn{margin-top:6px;width:100%}
+
+/* 테스트 기간 안내 페이지 */
+.guide{max-width:760px}
+.guide .lead{font-size:15.5px;line-height:1.7;margin:4px 0 0}
+.guide h3{margin:26px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--accent);font-size:16px}
+.guide ul{margin:6px 0 0;padding-left:20px}
+.guide li{margin:5px 0;line-height:1.55}
+.gTbl td b{white-space:nowrap}
+.gSteps{counter-reset:gs;list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
+.gSteps li{counter-increment:gs;display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:start;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;margin:0;line-height:1.5}
+.gSteps li::before{content:counter(gs);font-weight:700;font-size:20px;color:var(--crit);line-height:1.1}
+.gSteps li>div{min-width:0}
+.gTwo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.gTwo{grid-template-columns:1fr}}
+.gTpl{background:var(--surface);border:1px dashed var(--rule);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.7}
+.card.gOk{border-color:var(--ok);background:var(--ok-soft)}
+.card.gNo{border-color:var(--crit);background:var(--crit-soft)}

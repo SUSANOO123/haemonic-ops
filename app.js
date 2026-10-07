@@ -677,7 +677,7 @@ const App = (() => {
   const MENU = [
     { id: 'home', items: [['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭' },   // 카테고리 없이 맨 위 단독 항목
     { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
-    { id: 'people', g: '직원', gs: '직원', ic: '👥', items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
+    { id: 'people', g: '인사관리', gs: '인사', ic: '👥', items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
     { id: 'ops', g: '운영', gs: '운영', ic: '🏪', items: [['buyInsight', '갑각류 매입 인사이트', '🦀'], ['issues', '트러블시트', '📝']] },
     { id: 'kitchen', g: '서비스 교육', gs: '교육', ic: '🎓', items: [['recipes', '레시피 관리', '📖']] },
     { id: 'acct', g: '회계', gs: '회계', ic: '💵', items: [['salesIn', '매출 입력', '🧾'], ['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
@@ -3130,7 +3130,7 @@ const App = (() => {
     const tabName = mt ? (mt.stores.find((x) => x.id === tab) || {}).name : '';
 
     h += `<div class="hd sub2"><h3>직원</h3></div>
-      <div class="notice"><b>직원 명단과 근로계약서는 왼쪽 메뉴 <b>직원</b>으로 옮겼습니다.</b>
+      <div class="notice"><b>직원 명단과 근로계약서는 왼쪽 메뉴 <b>인사관리</b>로 옮겼습니다.</b>
         <div class="rowbtns"><button class="btn sm" data-act="view" data-v="staff">직원 명단 열기</button>
         <button class="btn sm" data-act="view" data-v="contracts">근로계약서 열기</button></div></div>`;
 

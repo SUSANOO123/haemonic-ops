@@ -139,12 +139,14 @@ const App = (() => {
   /* 잠금: 순서 편집은 PIN 으로 풀고, 10분 지나거나 새로고침하면 다시 잠긴다 (이 기기에서만) */
   const ORDER_UNLOCK_MS = 10 * 60 * 1000;
   let orderUnlockedAt = 0;
-  const orderUnlocked = () => Date.now() - orderUnlockedAt < ORDER_UNLOCK_MS;
+  /* 사장님 모드 = 사장님 계정(이메일·비밀번호)으로 서버에 로그인한 상태. 직원 기기는 자동(익명) 연결이라 false. */
+  const ownerOn = () => !!(Store.supa && Store.supa.signedIn && !Store.supa.anon);
+  const orderUnlocked = () => ownerOn() || Date.now() - orderUnlockedAt < ORDER_UNLOCK_MS;
   const pinOk = (v) => /^\d{4,6}$/.test(v || '');
 
-  /* 업무 카테고리 밖(인사관리·운영·서비스 교육·회계·설정)은 사장님 PIN 으로 잠근다 (사장님 요청 2026-10-07).
-     PIN 이 아직 없으면 잠그지 않는다 — 설정에서 PIN 을 만들면 그때부터 잠긴다. 푼 뒤 10분 지나면 다시 잠김. */
-  const viewLocked = (v) => { const g = groupOf(v); return !!(g && g.lock && pinOk(S.settings.orderPin) && !orderUnlocked()); };
+  /* 업무 카테고리 밖(인사관리·운영·서비스 교육·회계·설정)은 사장님 계정으로 로그인해야 열린다 (사장님 요청 2026-10-07).
+     직원 기기(자동 연결)에서는 항상 잠겨 있다. */
+  const viewLocked = (v) => { const g = groupOf(v); return !!(g && g.lock && !ownerOn()); };
   function orderUnlockModal(why) {
     if (!pinOk(S.settings.orderPin)) { orderPinModal(true); return; }
     modal('사장님 PIN', `<p class="hint" style="margin-top:0">${why || '할 일 순서를 바꾸려면 사장님 PIN 을 넣으세요.'} 10분 뒤 자동으로 다시 잠깁니다.</p>
@@ -160,7 +162,7 @@ const App = (() => {
   function orderPinModal(thenUnlock) {
     const has = pinOk(S.settings.orderPin);
     modal(has ? '사장님 PIN 바꾸기' : '사장님 PIN 만들기', `
-      <p class="hint" style="margin-top:0">${has ? '현재 PIN 을 확인한 뒤 새 PIN 을 넣습니다.' : '이 PIN 을 아는 사람만 할 일 순서를 바꾸고, 인사관리·운영·서비스 교육·회계·설정 카테고리를 열 수 있습니다. 직원에게는 알려주지 마세요.'}</p>
+      <p class="hint" style="margin-top:0">${has ? '현재 PIN 을 확인한 뒤 새 PIN 을 넣습니다.' : '직원 기기에서 할 일 순서·이름을 바꿀 때 쓰는 PIN 입니다. 사장님 로그인 중에는 PIN 없이 됩니다. 직원에게는 알려주지 마세요.'}</p>
       ${has ? `<label>현재 PIN<input id="opCur" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>` : ''}
       <label>새 PIN (숫자 4~6자리)<input id="opNew" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
       <label>새 PIN 한 번 더<input id="opNew2" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>`, () => {
@@ -703,10 +705,10 @@ const App = (() => {
 
   function vLocked() {
     const g = groupOf(view) || {};
-    return `<div class="hd"><div><h2>${g.ic || '🔒'} ${esc(g.g || '')}</h2><div class="sub">사장님 PIN 으로 잠겨 있습니다.</div></div></div>
+    return `<div class="hd"><div><h2>${g.ic || '🔒'} ${esc(g.g || '')}</h2><div class="sub">사장님 계정으로 로그인해야 보입니다.</div></div></div>
       <div class="lockBox"><div class="lockIc">🔒</div>
-        <p>이 카테고리는 사장님만 봅니다.<br><span class="mut">PIN 을 넣으면 10분 동안 열립니다. 새로고침하면 다시 잠깁니다.</span></p>
-        <button class="btn primary" data-act="viewUnlock">PIN 넣고 열기</button>
+        <p>이 카테고리는 사장님만 봅니다.<br><span class="mut">사장님 계정(이메일·비밀번호)으로 로그인하면 열립니다. 직원 기기에서는 로그인하지 마세요.</span></p>
+        <button class="btn primary" data-act="supaLogin">사장님 로그인</button>
         <button class="btn ghost" data-act="view" data-v="today">할 일로 돌아가기</button></div>`;
   }
   function sideMenu() {
@@ -716,7 +718,7 @@ const App = (() => {
       if (!m.g) return `${i ? '<div class="sgap"></div>' : ''}<div class="shome">${m.items.map(item).join('')}</div>`;
       const open = navOpen.has(m.id), here = cur && cur.id === m.id;
       return `<button class="sgrp${open ? ' open' : ''}${here ? ' here' : ''}" data-act="navGroup" data-g="${m.id}" aria-expanded="${open}">
-          <span class="sic">${m.ic}</span><span class="sgname">${m.g}</span><span class="sgcnt">${m.lock && pinOk(S.settings.orderPin) ? (orderUnlocked() ? '🔓' : '🔒') : m.items.length}</span><span class="scaret">›</span>
+          <span class="sic">${m.ic}</span><span class="sgname">${m.g}</span><span class="sgcnt">${m.lock ? (ownerOn() ? '🔓' : '🔒') : m.items.length}</span><span class="scaret">›</span>
         </button>
         <div class="ssub"${open ? '' : ' hidden'}>${m.items.map(item).join('')}</div>`;
     }).join('');
@@ -753,7 +755,7 @@ const App = (() => {
     $('#side').innerHTML = `<div class="slogo">🦀 해모닉<small>업무 체크리스트</small></div>
       <div class="sstore">${storeBtns}</div>
       <nav class="smenu">${sideMenu()}</nav>
-      <div class="sfoot"><div class="sfl">지금 사용 중</div>${whoBtn}</div>`;
+      <div class="sfoot"><div class="sfl">지금 사용 중</div>${whoBtn}${ownerOn() ? '<button class="btn sm ghost ownerBtn" data-act="supaLogout">👑 사장님 모드 · 로그아웃</button>' : ''}</div>`;
 
     $('#nav').innerHTML = topNav();
     $('#who').innerHTML = whoBtn;
@@ -3265,7 +3267,7 @@ const App = (() => {
 
       <div class="hd sub2"><h3>할 일 순서 잠금</h3></div>
       <div class="setrow"><span>순서 바꾸기 PIN <span class="hint" style="margin:0">사장님만 아는 숫자 4~6자리</span></span>
-        <span class="v">${pinOk(S.settings.orderPin) ? '설정됨 — 인사관리·운영·서비스 교육·회계·설정은 PIN 으로 잠김' : '미설정 — PIN 을 만들면 업무 밖 카테고리가 잠깁니다'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
+        <span class="v">${pinOk(S.settings.orderPin) ? '설정됨 — 직원 기기에서 할 일 순서·이름을 바꿀 때 씁니다 (사장님 로그인 중에는 필요 없음)' : '미설정 — 직원 기기에서 순서를 바꾸려면 만드세요 (사장님 로그인 중에는 필요 없음)'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
       <p class="hint">할 일 화면의 순서는 기본으로 잠겨 있어 직원이 실수로 바꿀 수 없습니다. 할 일 화면 › <b>순서 바꾸기</b>에서 PIN 을 넣으면 10분 동안 손잡이(⠿)를 끌어 순서를 바꿀 수 있고, 새로고침하거나 10분이 지나면 다시 잠깁니다. 바꾼 순서는 매일 · 모든 기기에 같이 적용됩니다.</p>
 
       <div class="hd sub2"><h3>완료자 기록</h3></div>
@@ -3713,23 +3715,23 @@ const App = (() => {
   /* 설정 › 서버 연결 (Supabase 실시간 동기화) */
   function serverSettings() {
     const sp = Store.supa;
-    const state = !sp.libLoaded ? '<span class="chip missed">연결 도구를 못 불러옴 — 인터넷 확인</span>' : sp.signedIn ? `<span class="chip today">연결됨</span> <small class="mut">${sp.anon ? '자동 연결 (이 기기 전용 세션)' : esc(sp.email || '')}</small>` : '<span class="chip crit">연결 안 됨 — 이 기기에만 저장 중</span>';
+    const state = !sp.libLoaded ? '<span class="chip missed">연결 도구를 못 불러옴 — 인터넷 확인</span>' : sp.signedIn ? `<span class="chip today">연결됨</span> <small class="mut">${sp.anon ? '직원 모드 — 자동 연결 (이 기기 전용 세션)' : '👑 사장님 모드 — ' + esc(sp.email || '')}</small>` : '<span class="chip crit">연결 안 됨 — 이 기기에만 저장 중</span>';
     return `<div class="hd sub2"><h3>서버 연결 — 실시간 동기화</h3></div>
       <p class="hint">앱을 열면 서버에 자동으로 연결됩니다 — 로그인이나 비밀번호가 필요 없습니다. 매장 아이패드 · 사장님 폰 · PC가 같은 기록을 실시간으로 봅니다. 아래 주소·키는 바꿀 일이 거의 없습니다.</p>
       <div class="setrow"><span>상태</span><span class="v">${state}</span></div>
       <div class="setrow"><span>Project URL</span><input class="num wide2" data-act="supaUrl" value="${esc(sp.url || '')}" placeholder="https://xxxx.supabase.co" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
       <div class="setrow"><span>anon 키 <div class="hint">공개용 키. service_role 키는 넣지 마세요.</div></span><input type="password" class="num wide2" data-act="supaKey" value="${esc((JSON.parse(localStorage.getItem('hm.supa') || 'null') || {}).key || '')}" placeholder="eyJ…" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
-      <div class="rowbtns">${sp.signedIn ? (sp.anon ? `<button class="btn ghost" data-act="supaLogin">사장님 계정으로 로그인 (선택)</button>` : `<button class="btn" data-act="supaLogout">로그아웃 (자동 연결로 돌아감)</button>`) : `<button class="btn primary" data-act="supaRetry">다시 연결</button><button class="btn ghost" data-act="supaLogin">계정으로 로그인</button>`}</div>
+      <div class="rowbtns">${sp.signedIn ? (sp.anon ? `<button class="btn primary" data-act="supaLogin">사장님 로그인</button>` : `<button class="btn" data-act="supaLogout">사장님 모드 로그아웃 (직원 모드로)</button>`) : `<button class="btn primary" data-act="supaRetry">다시 연결</button><button class="btn ghost" data-act="supaLogin">계정으로 로그인</button>`}</div>
       <p class="hint">${sp.signedIn ? '이 기기의 변경은 곧바로 서버에 올라가고, 다른 기기의 변경은 1~2초 안에 이 화면에 나타납니다.' : '인터넷이 끊겼거나 서버가 잠시 응답하지 않을 때입니다. 연결되면 이 기기의 기록은 서버와 합쳐집니다.'}</p>`;
   }
   function supaLoginModal() {
-    modal('서버 로그인 — 매장 공용 계정', `<label>이메일<input id="suE" type="email" autocomplete="username" placeholder="store@example.com"></label>
+    modal('사장님 로그인', `<label>이메일<input id="suE" type="email" autocomplete="username" placeholder="사장님 계정 이메일"></label>
       <label>비밀번호<input id="suP" type="password" autocomplete="current-password"></label>
-      <p class="hint">보통은 필요 없습니다 — 앱은 자동으로 연결됩니다. 사장님 계정으로 구분해 두고 싶을 때만 쓰세요. 이 기기의 기록은 그대로 유지됩니다.</p>`, () => {
+      <p class="hint">사장님 계정으로 로그인하면 인사관리·운영·서비스 교육·회계·설정이 열리고, PIN 없이 할 일 순서도 바꿀 수 있습니다. 직원 기기에서는 로그인하지 말고, 썼다면 왼쪽 아래 <b>로그아웃</b>을 누르세요. 직원은 로그인 없이 업무 카테고리를 그대로 씁니다.</p>`, () => {
       const e = $('#suE').value.trim(), pw = $('#suP').value;
       if (!e || !pw) { alert('이메일과 비밀번호를 넣어 주세요.'); return false; }
       const btn = $('#modal [data-act="mOk"]'); if (btn) { btn.disabled = true; btn.textContent = '연결 중…'; }
-      Store.flush().then(() => Store.supaSignIn(e, pw)).then(() => { closeModal(); banner('서버에 연결했습니다', '앱을 다시 불러옵니다.'); setTimeout(() => location.reload(), 600); })
+      Store.flush().then(() => Store.supaSignIn(e, pw)).then(() => { closeModal(); banner('사장님 모드로 들어갑니다', '앱을 다시 불러옵니다.'); setTimeout(() => location.reload(), 600); })
         .catch((err) => { if (btn) { btn.disabled = false; btn.textContent = '로그인'; } alert('로그인 실패: ' + (err && err.message ? err.message : err)); });
       return false;
     }, '로그인');
@@ -5621,7 +5623,7 @@ const App = (() => {
         case 'showReport': showReport(b.dataset.k || viewKey()); break;
         case 'supaLogin': supaLoginModal(); break;
         case 'supaRetry': Store.flush().then(() => location.reload()); break;
-        case 'supaLogout': { if (!confirm('서버 로그아웃할까요? 이 기기 기록은 남고, 동기화만 멈춥니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }
+        case 'supaLogout': { if (!confirm('사장님 모드에서 나갈까요? 이 기기는 직원 모드(자동 연결)로 돌아가고, 업무 밖 카테고리는 다시 잠깁니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }
         case 'supaClear': { if (!confirm('서버 주소와 열쇠를 이 기기에서 지울까요? 기록은 남습니다.')) return; Store.supaSignOut().then(() => { Store.supaSetConfig('', ''); location.reload(); }); break; }
         case 'export': doExport(); break;
         case 'import': doImport(); break;

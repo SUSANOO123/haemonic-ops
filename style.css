@@ -1381,3 +1381,5 @@ table.tkLog td small{display:block;font-size:11px;color:var(--muted);font-weight
 .cpRow.noTarget .cp{opacity:.45}
 input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .patTbl input{min-width:150px}
+
+.ownerBtn{margin-top:6px;width:100%}

@@ -256,6 +256,13 @@ const Store = (() => {
       ['health', 'id'], ['staff', 'name'], ['trainSeen', null]].forEach(([f, by]) => {
       const v = unionBy(newer[f], older[f], by); if (v !== undefined) out[f] = v;
     });
+    /* 기본값으로 깔리는 자리표시 직원(사장님 · 홀 1 · 주방 1 · 매니저 · 점장, id s1~s3)은 한쪽에만 있으면 버린다.
+       새 기기가 처음 연결될 때 빈 기본 상태의 이름이 서버 명단에 다시 섞여 들어오던 문제 (사장님 지적 2026-10-08) */
+    if (Array.isArray(out.staff)) {
+      const ph = (s) => s && /^s[1-3]$/.test(String(s.id)) && ['사장님', '홀 1', '주방 1', '매니저', '점장'].includes(s.name);
+      const has = (list, s) => (list || []).some((x) => x && x.name === s.name);
+      out.staff = out.staff.filter((s) => !ph(s) || (has(newer.staff, s) && has(older.staff, s)));
+    }
     if (Array.isArray(out.issues)) out.issues = out.issues.map((i) => {
       const n = (newer.issues || []).find((x) => x.id === i.id), o = (older.issues || []).find((x) => x.id === i.id);
       return n && o ? { ...i, replies: unionBy(n.replies, o.replies, 'id') || [] } : i;

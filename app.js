@@ -6348,6 +6348,11 @@ const App = (() => {
     if (!S.issues) S.issues = [];
     if (!S.deaths) S.deaths = [];
     if (!S.deadUse) S.deadUse = {};
+    /* 실제 직원이 한 명이라도 있으면 기본 자리표시 직원(사장님 · 홀 1 · 주방 1 · 매니저 · 점장, id s1~s3)은 자동으로 치운다 — 사장님 지적 2026-10-08 */
+    if (Array.isArray(S.staff)) {
+      const ph = (x) => x && /^s[1-3]$/.test(String(x.id)) && ['사장님', '홀 1', '주방 1', '매니저', '점장'].includes(x.name);
+      if (S.staff.some((x) => x && x.name && !ph(x))) S.staff = S.staff.filter((x) => !ph(x));
+    }
     if (!S.contracts) S.contracts = [];
     if (!S.blobs) S.blobs = {};
     if (!S.settings) S.settings = { ...DEFAULT_SETTINGS };

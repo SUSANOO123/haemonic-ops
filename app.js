@@ -750,9 +750,9 @@ const App = (() => {
   const MENU_LIMITED = [{ id: 'home', items: [['register', '기기 등록', '🔐'], ['training', '교육 자료', '🎓']], gs: '홈', ic: '🔐', main: 'register' }];
   let MENU = [
     { id: 'home', items: [['guide', '테스트 안내', '📋'], ['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭', main: 'dash', hot: 'guide' },   // 테스트 안내가 맨 위, 첫 화면은 대시보드   // 카테고리 없이 맨 위 단독 항목
-    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['salesIn', '매출 입력', '🧾'], ['issues', '공유 게시판', '📝'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
+    { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['salesIn', '매출 입력', '🧾'], ['issues', '공유 게시판', '📝'], ['costs', '원가 관리 (식자재)', '💰'], ['health', '보건증 관리', '🩺']] },
     { id: 'people', g: '인사관리', gs: '인사', ic: '👥', lock: true, items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
-    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', lock: true, items: [['buyInsight', '갑각류 매입 인사이트', '🦀']] },
+    { id: 'ops', g: '운영', gs: '운영', ic: '🏪', lock: true, items: [['costAll', '총원가 (갑각류 + 식자재)', '💰'], ['buyInsight', '갑각류 매입 인사이트', '🦀']] },
     { id: 'kitchen', g: '서비스 교육', gs: '교육', ic: '🎓', lock: true, items: [['recipes', '레시피 관리', '📖']] },
     { id: 'acct', g: '회계', gs: '회계', ic: '💵', lock: true, items: [['salesStat', '매출 분석', '📈'], ['pnl', '월 손익', '📘'], ['labor', '인건비', '👷']] },
     { id: 'sys', g: '설정', gs: '설정', ic: '⚙️', lock: true, items: [['settings', '설정', '⚙️'], ['routines', '루틴', '🔁']] },
@@ -953,7 +953,7 @@ const App = (() => {
     const sb = $('#storebar'); if (sb) sb.innerHTML = `<div class="sstore top">${storeBtns}</div>`;
 
     const y = window.scrollY;
-    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, register: vRegister, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
+    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, register: vRegister, costAll: vCostAll, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
     /* 지금 어느 매장 데이터를 보고 있는지 화면마다 박아둔다.
        직원·기록이 매장별로 따로인데 표시가 없으면 공유되는 것처럼 오해한다. */
     const h2 = $('#main .hd h2');
@@ -2225,81 +2225,108 @@ const App = (() => {
   /* ── 원가 관리 (매입) ─────────────────────────────────────── */
   const fmtWon = (n) => (Number(n) || 0).toLocaleString('ko-KR') + '원';
 
-  function vCosts() {
-    const m = S.ui.cmonth || dateKey().slice(0, 7);
+  /* 원가 관리는 두 판 (사장님 요청 2026-10-08, 두 매장 공통):
+     · 업무 › 원가 관리 (식자재) — 직원이 입력. 갑각류(대게·킹크랩·랍스터)는 아예 빠진다.
+     · 운영 › 총원가 — 사장님만. 갑각류 + 식자재 전체와 원가율. 갑각류 매입 입력도 여기서. */
+  const CRAB_CATS = ['대게', '킹크랩', '랍스터'];
+  const isCrabBuy = (x) => CRAB_CATS.includes(x.cat);
+  const monthBuys = (m) => (S.purchases || []).filter((x) => (x.date || '').slice(0, 7) === m).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+  const sumAmt = (arr) => arr.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  function monthNavCosts(m, extraBtns) {
     const [y, mo] = m.split('-').map(Number);
-    const list = (S.purchases || []).filter((x) => (x.date || '').slice(0, 7) === m)
-      .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
-
-    const total = list.reduce((a, x) => a + (Number(x.amount) || 0), 0);
-    // 같은 달 매출(회계 › 매출 입력 + 마감 정산 입력분) → 원가율
-    const sales = monthSales(m);
-    const byCat = {};
-    list.forEach((x) => { byCat[x.cat] = (byCat[x.cat] || 0) + (Number(x.amount) || 0); });
-
-    let h = `<div class="hd">
-      <div><h2>원가 관리</h2><div class="sub">매입한 것을 그때그때 적어두면 월말에 원가율이 저절로 나옵니다. 직원 누구나 입력할 수 있습니다.</div></div>
-      <div class="mnav">
+    return `<div class="mnav">
         <button class="dnav" data-act="cmonthNav" data-d="-1" aria-label="이전 달">‹</button>
         <span class="mtitle">${y}년 ${mo}월</span>
         <button class="dnav" data-act="cmonthNav" data-d="1" aria-label="다음 달">›</button>
-        <button class="btn" data-act="purchaseCsv">CSV 가져오기</button>
-        <button class="btn primary" data-act="purchaseAdd">+ 매입 입력</button>
-      </div>
-    </div>`;
-
-    h += `<div class="cards m4">
-      <div class="card"><div class="cl">이번 달 매입</div><div class="cv sm2">${fmtWon(total)}</div><div class="cs">${list.length}건</div></div>
-      <div class="card"><div class="cl">이번 달 매출</div><div class="cv sm2">${sales ? fmtWon(sales) : '–'}</div><div class="cs">회계 › 매출 입력 기준</div></div>
-      <div class="card${sales && total / sales > 0.45 ? ' warn' : ''}"><div class="cl">원가율</div>
-        <div class="cv">${sales ? Math.round(total / sales * 100) : '–'}<small>${sales ? '%' : ''}</small></div>
-        <div class="cs">매입 ÷ 매출</div></div>
-      <div class="card"><div class="cl">최다 분류</div>
-        <div class="cv sm2">${Object.keys(byCat).length ? Object.entries(byCat).sort((a, b) => b[1] - a[1])[0][0] : '–'}</div></div>
-    </div>`;
-
-    if (Object.keys(byCat).length) {
-      const mx = Math.max(...Object.values(byCat), 1);
-      h += `<div class="hd sub2"><h3>분류별 매입</h3></div><div class="loads">
-        ${Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<div class="lrow"><span class="ln">${esc(c)}</span>
-          <span class="lbar"><i style="width:${v / mx * 100}%"></i></span><span class="lv">${fmtWon(v)}</span></div>`).join('')}</div>`;
-    }
-
-    h += `<div class="hd sub2"><h3>매입 내역</h3><span class="hint" style="margin:0">분류 · 품목 · <b>수량</b> · <b>거래처</b> · 금액 · 기록자 — 줄을 누르면 수정</span></div>`;
-    if (!list.length) {
-      h += `<div class="notice"><b>이번 달 매입 기록이 없습니다.</b>
-        <div class="hint">입고될 때마다 <b>+ 매입 입력</b>으로 바로 적어두세요. 영수증이 쌓이고 나서 몰아 적으면 반드시 빠집니다.</div></div>`;
-    } else {
-      let lastDate = '';
-      h += `<div class="plist">`;
-      list.forEach((x) => {
-        if (x.date !== lastDate) {
-          lastDate = x.date;
-          const d = new Date(x.date + 'T00:00:00');
-          h += `<div class="pdate">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}</div>`;
-        }
-        h += `<button class="prow" data-act="purchaseEdit" data-id="${x.id}">
-          <span class="chip cat">${esc(x.cat)}</span>
+        ${extraBtns || ''}
+      </div>`;
+  }
+  function purchaseList(list, emptyMsg) {
+    if (!list.length) return `<div class="notice"><b>${emptyMsg || '이번 달 매입 기록이 없습니다.'}</b><div class="hint">입고될 때마다 <b>+ 매입 입력</b>으로 바로 적어두세요. 영수증이 쌓이고 나서 몰아 적으면 반드시 빠집니다.</div></div>`;
+    let lastDate = '', h = `<div class="plist">`;
+    list.forEach((x) => {
+      if (x.date !== lastDate) { lastDate = x.date; const d = new Date(x.date + 'T00:00:00'); h += `<div class="pdate">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}</div>`; }
+      h += `<button class="prow" data-act="purchaseEdit" data-id="${x.id}">
+          <span class="chip ${isCrabBuy(x) ? 'mgr' : 'cat'}">${esc(x.cat)}</span>
           <span class="pnm">${esc(x.name)}</span>
           <span class="pqty">${x.qty ? `${esc(x.qty)}<small>${esc(x.unit || '')}</small>` : '<small class="dim">수량 없음</small>'}</span>
           <span class="pvendor">${x.vendor ? `🏷 ${esc(x.vendor)}` : '<small class="dim">거래처 없음</small>'}</span>
           <span class="pamt">${fmtWon(x.amount)}</span>
           <span class="pby">${esc(x.by || '')}</span>
         </button>`;
-      });
-      h += `</div>`;
-    }
+    });
+    return h + `</div>`;
+  }
+  function catBars(byCat) {
+    const mx = Math.max(...Object.values(byCat), 1);
+    return `<div class="loads">${Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<div class="lrow"><span class="ln">${esc(c)}</span>
+          <span class="lbar"><i style="width:${v / mx * 100}%"></i></span><span class="lv">${fmtWon(v)}</span></div>`).join('')}</div>`;
+  }
+  /* 직원용 — 식자재·소모품만 */
+  function vCosts() {
+    const m = S.ui.cmonth || dateKey().slice(0, 7);
+    const list = monthBuys(m).filter((x) => !isCrabBuy(x));
+    const total = sumAmt(list), sales = monthSales(m);
+    const byCat = {};
+    list.forEach((x) => { byCat[x.cat] = (byCat[x.cat] || 0) + (Number(x.amount) || 0); });
+    let h = `<div class="hd">
+      <div><h2>원가 관리 — 식자재·소모품</h2><div class="sub">매장에서 실제로 사 오는 것(수산물 · 식자재 · 주류·음료 · 소모품)을 그때그때 적습니다. 갑각류 매입은 여기서 다루지 않습니다.</div></div>
+      ${monthNavCosts(m, `<button class="btn" data-act="purchaseCsv">CSV 가져오기</button><button class="btn primary" data-act="purchaseAdd" data-mode="staff">+ 매입 입력</button>`)}
+    </div>`;
+    h += `<div class="cards m4">
+      <div class="card"><div class="cl">이번 달 식자재 매입</div><div class="cv sm2">${fmtWon(total)}</div><div class="cs">${list.length}건</div></div>
+      <div class="card"><div class="cl">이번 달 매출</div><div class="cv sm2">${sales ? fmtWon(sales) : '–'}</div><div class="cs">매출 입력 기준</div></div>
+      <div class="card${sales && total / sales > 0.2 ? ' warn' : ''}"><div class="cl">식자재 원가율</div>
+        <div class="cv">${sales ? Math.round(total / sales * 100) : '–'}<small>${sales ? '%' : ''}</small></div>
+        <div class="cs">식자재 매입 ÷ 매출 (갑각류 제외)</div></div>
+      <div class="card"><div class="cl">최다 분류</div>
+        <div class="cv sm2">${Object.keys(byCat).length ? Object.entries(byCat).sort((a, b) => b[1] - a[1])[0][0] : '–'}</div></div>
+    </div>`;
+    if (Object.keys(byCat).length) h += `<div class="hd sub2"><h3>분류별 매입</h3></div>` + catBars(byCat);
+    h += `<div class="hd sub2"><h3>매입 내역</h3><span class="hint" style="margin:0">분류 · 품목 · <b>수량</b> · <b>거래처</b> · 금액 · 기록자 — 줄을 누르면 수정</span></div>`;
+    h += purchaseList(list);
     return h;
   }
-
-  function purchaseForm(x) {
-    const isNew = !x; x = x || { date: dateKey(), cat: PURCHASE_CATS[0], unit: 'kg' };
-    modal(isNew ? '매입 입력' : '매입 수정', `
+  /* 사장님용 — 갑각류 + 식자재 전체 */
+  function vCostAll() {
+    const m = S.ui.cmonth || dateKey().slice(0, 7);
+    const all = monthBuys(m), crab = all.filter(isCrabBuy), food = all.filter((x) => !isCrabBuy(x));
+    const tAll = sumAmt(all), tCrab = sumAmt(crab), tFood = sumAmt(food), sales = monthSales(m);
+    const pct = (v) => (sales ? Math.round(v / sales * 100) + '%' : '–');
+    const bySp = {}; crab.forEach((x) => { const o = bySp[x.cat] = bySp[x.cat] || { amt: 0, kg: 0, n: 0 }; o.amt += Number(x.amount) || 0; if ((x.unit || 'kg') === 'kg') o.kg += Number(x.qty) || 0; o.n++; });
+    const byCat = {}; food.forEach((x) => { byCat[x.cat] = (byCat[x.cat] || 0) + (Number(x.amount) || 0); });
+    let h = `<div class="hd">
+      <div><h2>총원가 — 갑각류 + 식자재</h2><div class="sub">사장님만 보는 화면입니다. 직원이 업무 › 원가 관리에 적은 식자재와 갑각류 매입을 합쳐 전체 원가율을 봅니다.</div></div>
+      ${monthNavCosts(m, `<button class="btn" data-act="purchaseCsv">CSV 가져오기</button><button class="btn" data-act="purchaseAdd" data-mode="crab">+ 갑각류 매입</button><button class="btn primary" data-act="purchaseAdd" data-mode="all">+ 매입 입력</button>`)}
+    </div>`;
+    h += `<div class="cards m4">
+      <div class="card"><div class="cl">총매입</div><div class="cv sm2">${fmtWon(tAll)}</div><div class="cs">${all.length}건</div></div>
+      <div class="card"><div class="cl">🦀 갑각류</div><div class="cv sm2">${fmtWon(tCrab)}</div><div class="cs">${crab.length}건 · 매출의 ${pct(tCrab)}</div></div>
+      <div class="card"><div class="cl">🧺 식자재·소모품</div><div class="cv sm2">${fmtWon(tFood)}</div><div class="cs">${food.length}건 · 매출의 ${pct(tFood)}</div></div>
+      <div class="card${sales && tAll / sales > 0.45 ? ' warn' : ''}"><div class="cl">총원가율</div><div class="cv">${sales ? Math.round(tAll / sales * 100) : '–'}<small>${sales ? '%' : ''}</small></div><div class="cs">총매입 ÷ 매출 ${fmtWon(sales)}</div></div>
+    </div>`;
+    h += `<div class="hd sub2"><h3>🦀 갑각류 매입 — 품종별</h3><span class="hint" style="margin:0">kg당 단가 흐름은 갑각류 매입 인사이트에서</span></div>`;
+    h += Object.keys(bySp).length ? `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>품종</th><th class="r">매입액</th><th class="r">kg</th><th class="r">kg당</th><th class="r">건</th><th class="r">매출 대비</th></tr></thead><tbody>
+      ${CRAB_CATS.filter((c) => bySp[c]).map((c) => { const o = bySp[c]; return `<tr><td><b>${c}</b></td><td class="r">${fmtWon(o.amt)}</td><td class="r">${o.kg ? fmtKg(o.kg) : '–'}</td><td class="r">${o.kg ? fmtWon(Math.round(o.amt / o.kg)) : '–'}</td><td class="r">${o.n}</td><td class="r">${pct(o.amt)}</td></tr>`; }).join('')}</tbody>
+      <tfoot><tr><td>합계</td><td class="r">${fmtWon(tCrab)}</td><td class="r">${fmtKg(Object.values(bySp).reduce((a, o) => a + o.kg, 0)) || '–'}</td><td></td><td class="r">${crab.length}</td><td class="r">${pct(tCrab)}</td></tr></tfoot></table></div>`
+      : `<div class="notice"><b>이번 달 갑각류 매입 기록이 없습니다.</b><div class="hint">위 <b>+ 갑각류 매입</b>으로 적거나 CSV로 가져오세요.</div></div>`;
+    h += `<div class="hd sub2"><h3>🧺 식자재·소모품 — 분류별</h3><span class="hint" style="margin:0">직원이 업무 › 원가 관리에서 입력</span></div>`;
+    h += Object.keys(byCat).length ? catBars(byCat) : `<div class="notice"><b>이번 달 식자재 매입 기록이 없습니다.</b></div>`;
+    h += `<div class="hd sub2"><h3>전체 매입 내역</h3><span class="hint" style="margin:0">갑각류는 진한 표시 — 줄을 누르면 수정</span></div>`;
+    h += purchaseList(all);
+    return h;
+  }
+  function purchaseForm(x, mode) {
+    const isNew = !x;
+    if (!mode) mode = x ? (isCrabBuy(x) ? 'crab' : 'staff') : 'staff';
+    const cats = mode === 'crab' ? CRAB_CATS : mode === 'all' ? PURCHASE_CATS : PURCHASE_CATS.filter((c) => !CRAB_CATS.includes(c));
+    x = x || { date: dateKey(), cat: cats[0], unit: mode === 'crab' ? 'kg' : '개' };
+    modal(isNew ? (mode === 'crab' ? '갑각류 매입 입력' : '매입 입력') : '매입 수정', `
       <div class="frow">
         <label>날짜<input type="date" id="puD" value="${esc(x.date)}"></label>
-        <label>분류<select id="puC">${PURCHASE_CATS.map((c) => `<option${c === x.cat ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+        <label>분류<select id="puC">${cats.map((c) => `<option${c === x.cat ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
       </div>
-      <label>품목<input id="puN" value="${esc(x.name || '')}" placeholder="예: 러시아 대게 활"></label>
+      <label>품목<input id="puN" value="${esc(x.name || '')}" placeholder="${mode === 'crab' ? '예: 러시아 대게 활' : '예: 깻잎 10단 · 소주 2박스 · 위생장갑'}"></label>
       <div class="frow">
         <label>수량 <span class="opt">선택</span><input type="number" id="puQ" min="0" step="0.1" value="${x.qty ?? ''}" inputmode="decimal"></label>
         <label>단위<select id="puU">${PURCHASE_UNITS.map((u) => `<option${u === x.unit ? ' selected' : ''}>${u}</option>`).join('')}</select></label>
@@ -5535,7 +5562,7 @@ const App = (() => {
         case 'storeSwitch': switchStore(b.dataset.id); break;
         case 'cmonthNav': S.ui.cmonth = monthShiftKey(S.ui.cmonth || dateKey().slice(0, 7), Number(b.dataset.d)); save(); render(); break;
         case 'nmonthNav': S.ui.nmonth = monthShiftKey(S.ui.nmonth || dateKey().slice(0, 7), Number(b.dataset.d)); save(); render(); break;
-        case 'purchaseAdd': purchaseForm(null); break;
+        case 'purchaseAdd': purchaseForm(null, b.dataset.mode || 'staff'); break;
         case 'purchaseCsv': purchaseCsvImport(); break;
         case 'biSp': S.ui.biSp = b.dataset.sp; save(); render(); break;
         case 'buyEvAdd': buyEvForm(); break;

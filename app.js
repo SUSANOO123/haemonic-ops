@@ -1512,19 +1512,39 @@ const App = (() => {
       ${fbRecent()}
     </div>`;
   }
-  /* 접수된 오류·건의 — 쓴 글이 바로 이 자리에 남는다 (사장님 요청 2026-10-08). 두 매장 공용, 최근 것이 위 */
+  /* 접수된 오류·건의 — 쓴 글이 바로 이 자리에 남고, 지난 것도 전부 이력으로 볼 수 있다 (사장님 요청 2026-10-08). 두 매장 공용, 최근 것이 위 */
+  let fbUi = { f: 'all', all: false };   // 이 기기 화면 전용 — 저장하지 않는다
+  function fbSnip(x) {
+    const lines = String(x.body || '').split('\n').map((l) => l.trim()).filter(Boolean);
+    const val = (l) => l.replace(/^[^:：]*[:：]\s*/, '').replace(/\(예:[^)]*\)/g, '').trim();
+    const pick = lines.find((l) => l.startsWith('❗') && val(l)) || lines.find((l) => l.startsWith('✅') && val(l)) || lines.find((l) => val(l));
+    const t = pick ? val(pick) : '';
+    return t.length > 70 ? t.slice(0, 70) + '…' : t;
+  }
   function fbRecent() {
-    const list = issuesAll().filter((x) => FB_CATS.includes(x.cat)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    const open = list.filter((x) => x.status !== 'done').length;
-    if (!list.length) return `<div class="fbList"><div class="fbListHead"><b>접수된 오류·건의</b><span class="mut">아직 없음 — 올리면 여기에 바로 남습니다</span></div></div>`;
-    const row = (x) => `<button class="fbRow${x.status === 'done' ? ' done' : ''}" data-act="issueOpen" data-id="${x.id}">
+    const all = issuesAll().filter((x) => FB_CATS.includes(x.cat)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const open = all.filter((x) => x.status !== 'done').length, done = all.length - open;
+    if (!all.length) return `<div class="fbList"><div class="fbListHead"><b>접수된 오류·건의</b><span class="mut">아직 없음 — 올리면 여기에 바로 남습니다</span></div></div>`;
+    const F = { all: () => true, open: (x) => x.status !== 'done', done: (x) => x.status === 'done', bug: (x) => x.cat === '앱 오류', idea: (x) => x.cat === '앱 건의' };
+    const list = all.filter(F[fbUi.f] || F.all);
+    const LIM = 8, shown = fbUi.all ? list : list.slice(0, LIM);
+    const chip = (k, label) => `<button class="chip pick${fbUi.f === k ? ' on' : ''}" data-act="fbFilter" data-f="${k}">${label}</button>`;
+    const row = (x) => { const snip = fbSnip(x), last = (x.replies || []).slice(-1)[0];
+      return `<button class="fbRow${x.status === 'done' ? ' done' : ''}" data-act="issueOpen" data-id="${x.id}">
         <span class="fbCat">${x.cat === '앱 오류' ? '🐛' : '🙋'}</span>
         <span class="fbTitle">${esc(x.title)}</span>
         <span class="fbMeta">${esc(x.store || '')} · ${x.anon ? '익명' : esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}${(x.replies || []).length ? ` · 💬${x.replies.length}` : ''}</span>
-        <span class="ipill${x.status === 'done' ? ' done' : ''}">${x.status === 'done' ? '처리 완료' : '접수'}</span></button>`;
-    return `<div class="fbList"><div class="fbListHead"><b>접수된 오류·건의 ${list.length}건</b><span class="mut">처리 전 ${open} · 누르면 내용과 답글</span></div>
-      ${list.slice(0, 8).map(row).join('')}
-      ${list.length > 8 ? `<button class="btn sm ghost" data-act="view" data-v="issues" style="margin-top:6px">전체 보기 (공유 게시판)</button>` : ''}</div>`;
+        ${snip ? `<span class="fbSnip">${esc(snip)}</span>` : ''}
+        ${last && last.fix ? `<span class="fbSnip fix">✅ ${esc(last.text.length > 70 ? last.text.slice(0, 70) + '…' : last.text)}</span>` : ''}
+        <span class="ipill${x.status === 'done' ? ' done' : ''}">${x.status === 'done' ? '처리 완료' : '접수'}</span></button>`; };
+    return `<div class="fbList">
+      <div class="fbListHead"><b>접수된 오류·건의 ${all.length}건</b><span class="mut">처리 전 ${open} · 처리 완료 ${done} · 누르면 내용과 답글</span></div>
+      <div class="fbChips">${chip('all', `전체 ${all.length}`)}${chip('open', `접수 ${open}`)}${chip('done', `처리 완료 ${done}`)}${chip('bug', '🐛 오류')}${chip('idea', '🙋 건의')}</div>
+      ${shown.length ? shown.map(row).join('') : '<div class="mut" style="padding:6px 2px">해당하는 글이 없습니다.</div>'}
+      <div class="rowbtns" style="margin-top:6px">
+        ${list.length > LIM ? `<button class="btn sm ghost" data-act="fbAll">${fbUi.all ? '최근 8건만' : `전체 이력 펼치기 (${list.length}건)`}</button>` : ''}
+        <button class="btn sm ghost" data-act="view" data-v="issues">공유 게시판에서 보기</button>
+      </div></div>`;
   }
   function vRules() {
     const sid = Store.meta ? Store.meta.current : 'ansan';
@@ -5674,6 +5694,8 @@ const App = (() => {
         }
         case 'issueAdd': issueForm(null); break;
         case 'fbNew': issueForm({ cat: b.dataset.c }); break;
+        case 'fbFilter': fbUi.f = b.dataset.f; fbUi.all = false; render(); break;
+        case 'fbAll': fbUi.all = !fbUi.all; render(); break;
         case 'fbCopy': { const done = () => banner('양식을 복사했습니다', '게시판 글 쓰기나 단톡방에 붙여 넣으세요.');
           if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(FB_TEMPLATE).then(done).catch(() => prompt('아래 양식을 복사하세요', FB_TEMPLATE));
           else prompt('아래 양식을 복사하세요', FB_TEMPLATE); break; }
@@ -6289,7 +6311,7 @@ const App = (() => {
     return doc;
   }
 
-  function hydrate() {
+  function hydrate(keepUi) {
     if (!S.ui) S.ui = { who: null, whoDate: null, filter: 'all' };
     migrateRoles(S);
 
@@ -6350,11 +6372,13 @@ const App = (() => {
     if (S.settings && !S.settings.reportAtV2) { if (!S.settings.reportAt || S.settings.reportAt === '21:30' || S.settings.reportAt === '22:30') S.settings.reportAt = '21:50'; S.settings.reportAtV2 = 1; }
     /* 앱을 새로 열면 항상 오늘·전체 보기로 시작한다.
        공용 PC라 역할 필터가 남아 있으면 다음 사람이 자기 항목을 못 보게 된다. */
-    S.ui.date = dateKey();
-    S.ui.filter = 'all';
-    S.ui.slot = null;          // 앱을 열면 지금 시간대부터 보여준다
-    S.ui.month = dateKey().slice(0, 7);
-    S.ui.mdate = dateKey();
+    if (!keepUi) {             // 다른 기기 저장이 도착해 갈아끼울 때(keepUi)는 보던 시간대·필터를 그대로 둔다
+      S.ui.date = dateKey();
+      S.ui.filter = 'all';
+      S.ui.slot = null;        // 앱을 열면 지금 시간대부터 보여준다
+      S.ui.month = dateKey().slice(0, 7);
+      S.ui.mdate = dateKey();
+    }
     if (!S.recipes) S.recipes = [];
     if (!S.purchases) S.purchases = [];
     if (!S.sales) S.sales = {};
@@ -6448,7 +6472,8 @@ const App = (() => {
       if (k !== 'state:' + (Store.meta && Store.meta.current)) return;
       if (!$('#modal').hidden) return;      // 입력 중인 창을 날리지 않는다
       if (view === 'contracts' && cMode === 'edit') return;   // 계약서 작성 중 — 서명이 지워진다
-      S = doc; hydrate(); render();
+      const ui = S.ui;                       // 시간대 탭·필터·날짜는 이 기기 것 — 다른 기기 저장이 와도 튀지 않게 (사장님 요청 2026-10-08)
+      S = doc; S.ui = ui; hydrate(true); render();
     });
     document.addEventListener('cloud-status', () => { if (view === 'today' || view === 'settings') render(); });
     // 쓰다가 저장이 깨지는 경우(용량 초과 등)도 즉시 화면에 드러낸다

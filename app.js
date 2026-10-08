@@ -6341,7 +6341,7 @@ const App = (() => {
     // 주소 뒤에 ?view=tanks 처럼 붙이면 그 화면으로 바로 연다 — 아이패드 홈 화면 바로가기용
     try {
       const want = new URLSearchParams(location.search).get('view');
-      if (want && MENU.some((m) => m.items.some(([k]) => k === want))) view = want;
+      if (want && (want === 'register' || MENU.some((m) => m.items.some(([k]) => k === want)))) view = want;   // ?view=register 로 기기 등록 화면 바로 열기
       const cid = new URLSearchParams(location.search).get('c');
       if (cid && cById(cid)) { view = 'contracts'; cOpen = cid; cMode = isSigned(cById(cid)) ? null : 'edit'; }
     } catch (e) {}

@@ -139,8 +139,60 @@ const App = (() => {
   /* 잠금: 순서 편집은 PIN 으로 풀고, 10분 지나거나 새로고침하면 다시 잠긴다 (이 기기에서만) */
   const ORDER_UNLOCK_MS = 10 * 60 * 1000;
   let orderUnlockedAt = 0;
-  /* 사장님 모드 = 사장님 계정(이메일·비밀번호)으로 서버에 로그인한 상태. 직원 기기는 자동(익명) 연결이라 false. */
-  const ownerOn = () => !!(Store.supa && Store.supa.signedIn && !Store.supa.anon);
+  /* ── 사장님 모드 (2026-10-08) ──
+     아이디 없이 비밀번호 하나. 해시(SHA-256)만 두 매장 공용 문서(shared:issues → SH.owner)에 저장해 두 매장이 같은 비밀번호를 쓴다.
+     풀린 상태는 이 탭(sessionStorage)에만 남고, 5분 동안 누르거나 입력이 없으면 자동으로 잠긴다. */
+  const OWNER_IDLE_MS = 5 * 60 * 1000;
+  let ownerUntil = 0; try { ownerUntil = Number(sessionStorage.getItem('hm.ownerUntil') || 0); } catch (_) { /* 무시 */ }
+  const ownerOn = () => Date.now() < ownerUntil;
+  const ownerPwSet = () => !!(typeof SH !== 'undefined' && SH && SH.owner && SH.owner.hash);
+  function ownerExtend() { ownerUntil = Date.now() + OWNER_IDLE_MS; try { sessionStorage.setItem('hm.ownerUntil', String(ownerUntil)); } catch (_) { /* 무시 */ } }
+  function ownerLock(auto) {
+    ownerUntil = 0; try { sessionStorage.removeItem('hm.ownerUntil'); } catch (_) { /* 무시 */ }
+    if (!$('#modal').hidden) closeModal();
+    render();
+    banner(auto ? '사장님 모드가 잠겼습니다' : '사장님 모드를 잠갔습니다', auto ? '5분 동안 사용이 없어 자동으로 잠갔습니다.' : '다시 열려면 비밀번호를 넣으세요.');
+  }
+  async function hashPw(pw) {
+    const data = new TextEncoder().encode('haemonic-owner:' + pw);
+    if (window.crypto && crypto.subtle) { const b = await crypto.subtle.digest('SHA-256', data); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
+    let h = 2166136261; data.forEach((c) => { h ^= c; h = Math.imul(h, 16777619) >>> 0; }); return 'f' + h.toString(16);   // 보안 문맥이 아닐 때(file://) 임시 해시
+  }
+  function ownerLoginModal() {
+    if (!ownerPwSet()) { ownerPwModal(); return; }
+    modal('사장님 모드 열기', `<label>사장님 비밀번호<input id="owP" type="password" autocomplete="current-password"></label>
+      <p class="hint">맞으면 인사관리 · 운영 · 서비스 교육 · 회계 · 설정이 열리고, 할 일 순서도 바꿀 수 있습니다. <b>5분 동안 사용이 없으면 자동으로 잠깁니다.</b></p>`, () => {
+      const v = $('#owP').value; if (!v) return false;
+      hashPw(v).then((h) => {
+        if (h !== SH.owner.hash) { alert('비밀번호가 다릅니다.'); const i = $('#owP'); if (i) { i.value = ''; i.focus(); } return; }
+        ownerExtend(); closeModal(); render(); window.scrollTo(0, 0);
+        banner('사장님 모드', '5분 동안 사용이 없으면 자동으로 잠깁니다. 왼쪽 아래에서 바로 잠글 수도 있습니다.');
+      });
+      return false;
+    }, '열기');
+  }
+  function ownerPwModal() {
+    const has = ownerPwSet(), needCur = has && !ownerOn();
+    modal(has ? '사장님 비밀번호 바꾸기' : '사장님 비밀번호 만들기', `
+      <p class="hint" style="margin-top:0">${has ? '새 비밀번호를 넣습니다. 안산점·안양점에 같이 적용됩니다.' : '아직 비밀번호가 없습니다. 지금 만드는 비밀번호로 사장님 전용 메뉴(인사관리·운영·서비스 교육·회계·설정)가 잠기고, 안산점·안양점에 같이 적용됩니다. 직원에게는 알려주지 마세요.'}</p>
+      ${needCur ? `<label>현재 비밀번호<input id="owCur" type="password" autocomplete="current-password"></label>` : ''}
+      <label>새 비밀번호 (4자 이상, 숫자만도 됨)<input id="owNew" type="password" autocomplete="new-password"></label>
+      <label>새 비밀번호 한 번 더<input id="owNew2" type="password" autocomplete="new-password"></label>`, () => {
+      const n = $('#owNew').value, n2 = $('#owNew2').value;
+      if (n.length < 4) { alert('4자 이상으로 넣어 주세요.'); return false; }
+      if (n !== n2) { alert('두 번 넣은 비밀번호가 서로 다릅니다.'); return false; }
+      (async () => {
+        if (needCur) { const c = $('#owCur').value; if (await hashPw(c) !== SH.owner.hash) { alert('현재 비밀번호가 다릅니다.'); return; } }
+        SH.owner = { hash: await hashPw(n), at: Date.now() }; saveShared();
+        ownerExtend(); closeModal(); render();
+        banner(has ? '비밀번호를 바꿨습니다' : '사장님 비밀번호를 만들었습니다', '지금은 사장님 모드입니다. 5분 동안 사용이 없으면 잠깁니다.');
+      })();
+      return false;
+    }, '저장');
+  }
+  /* 사용 중이면 5분 연장, 안 쓰면 자동 잠김 */
+  ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => { if (ownerOn()) ownerExtend(); }, { passive: true }));
+  setInterval(() => { if (ownerUntil && !ownerOn()) ownerLock(true); }, 15 * 1000);
   const orderUnlocked = () => ownerOn() || Date.now() - orderUnlockedAt < ORDER_UNLOCK_MS;
   const pinOk = (v) => /^\d{4,6}$/.test(v || '');
 
@@ -148,6 +200,7 @@ const App = (() => {
      직원 기기(자동 연결)에서는 항상 잠겨 있다. */
   const viewLocked = (v) => { const g = groupOf(v); return !!(g && g.lock && !ownerOn()); };
   function orderUnlockModal(why) {
+    if (ownerPwSet()) { ownerLoginModal(); return; }
     if (!pinOk(S.settings.orderPin)) { orderPinModal(true); return; }
     modal('사장님 PIN', `<p class="hint" style="margin-top:0">${why || '할 일 순서를 바꾸려면 사장님 PIN 을 넣으세요.'} 10분 뒤 자동으로 다시 잠깁니다.</p>
       <label>PIN<input id="opIn" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="숫자 4~6자리"></label>`, () => {
@@ -777,10 +830,11 @@ const App = (() => {
   }
   function vLocked() {
     const g = groupOf(view) || {};
-    return `<div class="hd"><div><h2>${g.ic || '🔒'} ${esc(g.g || '')}</h2><div class="sub">사장님 계정으로 로그인해야 보입니다.</div></div></div>
+    const has = ownerPwSet();
+    return `<div class="hd"><div><h2>${g.ic || '🔒'} ${esc(g.g || '')}</h2><div class="sub">사장님 비밀번호로 잠겨 있습니다.</div></div></div>
       <div class="lockBox"><div class="lockIc">🔒</div>
-        <p>이 카테고리는 사장님만 봅니다.<br><span class="mut">사장님 계정(이메일·비밀번호)으로 로그인하면 열립니다. 직원 기기에서는 로그인하지 마세요.</span></p>
-        <button class="btn primary" data-act="supaLogin">사장님 로그인</button>
+        <p>이 카테고리는 사장님만 봅니다.<br><span class="mut">${has ? '비밀번호를 넣으면 열리고, 5분 동안 사용이 없으면 자동으로 다시 잠깁니다.' : '아직 사장님 비밀번호가 없습니다. 사장님이 먼저 만들어 주세요 (두 매장 공통).'}</span></p>
+        <button class="btn primary" data-act="ownerLogin">${has ? '비밀번호 넣고 열기' : '사장님 비밀번호 만들기'}</button>
         <button class="btn ghost" data-act="view" data-v="today">할 일로 돌아가기</button></div>`;
   }
   function sideMenu() {
@@ -827,7 +881,7 @@ const App = (() => {
     $('#side').innerHTML = `<div class="slogo">🦀 해모닉<small>업무 체크리스트</small></div>
       <div class="sstore">${storeBtns}</div>
       <nav class="smenu">${sideMenu()}</nav>
-      <div class="sfoot"><div class="sfl">지금 사용 중</div>${whoBtn}${ownerOn() ? '<button class="btn sm ghost ownerBtn" data-act="supaLogout">👑 사장님 모드 · 로그아웃</button>' : ''}</div>`;
+      <div class="sfoot"><div class="sfl">지금 사용 중</div>${whoBtn}${ownerOn() ? '<button class="btn sm ghost ownerBtn" data-act="ownerLock">👑 사장님 모드 · 잠그기</button>' : ''}</div>`;
 
     $('#nav').innerHTML = topNav();
     $('#who').innerHTML = whoBtn;
@@ -3360,10 +3414,14 @@ const App = (() => {
           : '텔레그램을 설정하면 그 시각에 자동으로 전송됩니다. 설정 전에는 문구만 만들어져 직접 복사해 보내시면 됩니다.'}
         리포트 시점 이후에 할 업무(마감 정산·문잠금)는 '이후 예정'으로 따로 표시되고 완료율에서 빠집니다.</p>
 
-      <div class="hd sub2"><h3>할 일 순서 잠금</h3></div>
-      <div class="setrow"><span>순서 바꾸기 PIN <span class="hint" style="margin:0">사장님만 아는 숫자 4~6자리</span></span>
+      <div class="hd sub2"><h3>사장님 비밀번호</h3></div>
+      <div class="setrow"><span>비밀번호 <span class="hint" style="margin:0">아이디 없음 · 두 매장 공통</span></span>
+        <span class="v">${ownerPwSet() ? '설정됨' : '미설정 — 지금 만드세요'} <button class="btn sm${ownerPwSet() ? '' : ' primary'}" data-act="ownerPw">${ownerPwSet() ? '비밀번호 바꾸기' : '비밀번호 만들기'}</button>${ownerOn() ? ' <button class="btn sm ghost" data-act="ownerLock">지금 잠그기</button>' : ''}</span></div>
+      <p class="hint">인사관리 · 운영 · 서비스 교육 · 회계 · 설정은 이 비밀번호를 넣어야 열립니다. 열고 나서 <b>5분 동안 사용이 없으면 자동으로 잠깁니다.</b> 할 일 순서·이름 바꾸기, 미션 승인, 게시판 글 삭제도 같은 비밀번호입니다.</p>
+      ${ownerPwSet() ? '' : `<div class="hd sub2"><h3>할 일 순서 잠금 (예전 PIN)</h3></div>`}
+      ${ownerPwSet() ? '' : `<div class="setrow"><span>순서 바꾸기 PIN <span class="hint" style="margin:0">사장님만 아는 숫자 4~6자리</span></span>
         <span class="v">${pinOk(S.settings.orderPin) ? '설정됨 — 직원 기기에서 할 일 순서·이름을 바꿀 때 씁니다 (사장님 로그인 중에는 필요 없음)' : '미설정 — 직원 기기에서 순서를 바꾸려면 만드세요 (사장님 로그인 중에는 필요 없음)'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
-      <p class="hint">할 일 화면의 순서는 기본으로 잠겨 있어 직원이 실수로 바꿀 수 없습니다. 할 일 화면 › <b>순서 바꾸기</b>에서 PIN 을 넣으면 10분 동안 손잡이(⠿)를 끌어 순서를 바꿀 수 있고, 새로고침하거나 10분이 지나면 다시 잠깁니다. 바꾼 순서는 매일 · 모든 기기에 같이 적용됩니다.</p>
+      <p class="hint">할 일 화면의 순서는 기본으로 잠겨 있어 직원이 실수로 바꿀 수 없습니다. 할 일 화면 › <b>순서 바꾸기</b>에서 PIN 을 넣으면 10분 동안 손잡이(⠿)를 끌어 순서를 바꿀 수 있고, 새로고침하거나 10분이 지나면 다시 잠깁니다. 바꾼 순서는 매일 · 모든 기기에 같이 적용됩니다.</p>`}
 
       <div class="hd sub2"><h3>완료자 기록</h3></div>
       <div class="setrow"><span>완료할 때마다 누가 했는지 묻기</span>
@@ -3832,13 +3890,13 @@ const App = (() => {
   /* 설정 › 서버 연결 (Supabase 실시간 동기화) */
   function serverSettings() {
     const sp = Store.supa;
-    const state = !sp.libLoaded ? '<span class="chip missed">연결 도구를 못 불러옴 — 인터넷 확인</span>' : sp.signedIn ? `<span class="chip today">연결됨</span> <small class="mut">${sp.anon ? '직원 모드 — 자동 연결 (이 기기 전용 세션)' : '👑 사장님 모드 — ' + esc(sp.email || '')}</small>` : '<span class="chip crit">연결 안 됨 — 이 기기에만 저장 중</span>';
+    const state = !sp.libLoaded ? '<span class="chip missed">연결 도구를 못 불러옴 — 인터넷 확인</span>' : sp.signedIn ? `<span class="chip today">연결됨</span> <small class="mut">${sp.anon ? '자동 연결 (이 기기 전용 세션)' : '서버 계정 — ' + esc(sp.email || '')}</small>` : '<span class="chip crit">연결 안 됨 — 이 기기에만 저장 중</span>';
     return `<div class="hd sub2"><h3>서버 연결 — 실시간 동기화</h3></div>
       <p class="hint">앱을 열면 서버에 자동으로 연결됩니다 — 로그인이나 비밀번호가 필요 없습니다. 매장 아이패드 · 사장님 폰 · PC가 같은 기록을 실시간으로 봅니다. 아래 주소·키는 바꿀 일이 거의 없습니다.</p>
       <div class="setrow"><span>상태</span><span class="v">${state}</span></div>
       <div class="setrow"><span>Project URL</span><input class="num wide2" data-act="supaUrl" value="${esc(sp.url || '')}" placeholder="https://xxxx.supabase.co" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
       <div class="setrow"><span>anon 키 <div class="hint">공개용 키. service_role 키는 넣지 마세요.</div></span><input type="password" class="num wide2" data-act="supaKey" value="${esc((JSON.parse(localStorage.getItem('hm.supa') || 'null') || {}).key || '')}" placeholder="eyJ…" autocomplete="off"${sp.signedIn ? ' disabled' : ''}></div>
-      <div class="rowbtns">${sp.signedIn ? (sp.anon ? `<button class="btn primary" data-act="supaLogin">사장님 로그인</button>` : `<button class="btn" data-act="supaLogout">사장님 모드 로그아웃 (직원 모드로)</button>`) : `<button class="btn primary" data-act="supaRetry">다시 연결</button><button class="btn ghost" data-act="supaLogin">계정으로 로그인</button>`}</div>
+      <div class="rowbtns">${sp.signedIn ? (sp.anon ? '' : `<button class="btn" data-act="supaLogout">서버 계정 로그아웃 (자동 연결로)</button>`) : `<button class="btn primary" data-act="supaRetry">다시 연결</button>`}</div>
       <p class="hint">${sp.signedIn ? '이 기기의 변경은 곧바로 서버에 올라가고, 다른 기기의 변경은 1~2초 안에 이 화면에 나타납니다.' : '인터넷이 끊겼거나 서버가 잠시 응답하지 않을 때입니다. 연결되면 이 기기의 기록은 서버와 합쳐집니다.'}</p>`;
   }
   function supaLoginModal() {
@@ -5746,7 +5804,10 @@ const App = (() => {
         case 'showReport': showReport(b.dataset.k || viewKey()); break;
         case 'supaLogin': supaLoginModal(); break;
         case 'supaRetry': Store.flush().then(() => location.reload()); break;
-        case 'supaLogout': { if (!confirm('사장님 모드에서 나갈까요? 이 기기는 직원 모드(자동 연결)로 돌아가고, 업무 밖 카테고리는 다시 잠깁니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }
+        case 'ownerLogin': ownerLoginModal(); break;
+        case 'ownerPw': ownerPwModal(); break;
+        case 'ownerLock': ownerLock(false); break;
+        case 'supaLogout': { if (!confirm('서버 계정에서 로그아웃할까요? 이 기기는 자동 연결로 돌아갑니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }
         case 'supaClear': { if (!confirm('서버 주소와 열쇠를 이 기기에서 지울까요? 기록은 남습니다.')) return; Store.supaSignOut().then(() => { Store.supaSetConfig('', ''); location.reload(); }); break; }
         case 'export': doExport(); break;
         case 'import': doImport(); break;

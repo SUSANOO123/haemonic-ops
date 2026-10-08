@@ -1448,3 +1448,6 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .regForm .btn{margin-top:4px}
 
 .mustTag{display:inline-block;background:var(--crit);color:#fff;font-weight:700;font-size:12.5px;padding:3px 10px;border-radius:999px;margin-bottom:6px;letter-spacing:.02em}
+
+.staffLockTag{font-size:12px;font-weight:700;color:var(--crit);background:var(--crit-soft);border-radius:6px;padding:4px 8px;margin-bottom:6px;text-align:center}
+#main [data-act][hidden]{display:none}

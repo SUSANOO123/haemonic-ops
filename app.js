@@ -192,6 +192,21 @@ const App = (() => {
       return false;
     }, '저장');
   }
+  /* ── 직원 잠금 (테스트 기간, 사장님 요청 2026-10-08) ──
+     사장님 모드가 아니면 "내용을 바꾸는" 동작은 전부 막는다. 직원에게 남는 것: 할 일 체크·건너뜀·되돌리기·메모, 완료 창의 숫자 입력,
+     수조·폐사 기록, 매출·식자재 매입 입력, 게시판 글. 설정 › 직원 잠금에서 끌 수 있다(기본 켜짐). */
+  const STAFF_BLOCK = new Set([
+    'addExtra', 'delExtra', 'tplNew', 'editTpl', 'cardTime', 'critToggle', 'orderUnlock', 'orderLock', 'orderReset', 'orderPinSet',
+    'noticeAdd', 'noticeEdit', 'noticeDel', 'noticeSend',
+    'seAdd', 'seClearDay', 'seCopyPrev', 'seFlag', 'seMonth', 'seNote', 'sePattern', 'seRemove', 'seRules', 'seShift', 'patFill', 'patFillNext', 'cmApply', 'cmAuto', 'cmClear', 'cmPreview', 'hdAdd', 'hdDel', 'crew',
+    'healthAdd', 'healthDel', 'trainAdd', 'trainDel', 'trainEdit', 'trainSeed', 'trainReward', 'rankReward', 'msAdd', 'msEdit', 'msDel', 'msGoal',
+    'recipeAdd', 'recipeEdit', 'recipeDel', 'staffAdd', 'staffDel', 'staffOff', 'staffRole', 'staffSeg', 'staffType',
+    'tankCount', 'tankCareDel', 'tankLogDel', 'deadDel', 'purchaseDel', 'purchaseCsv', 'salesDel', 'salesCsv',
+    'reset', 'import', 'sampleLoad', 'sampleClear', 'fixedAdd', 'fixedEdit', 'fixedDel', 'weeklyPay', 'sper', 'toggleAskWho', 'toggleReport', 'toggleSound', 'toggleTgInstant', 'tgFind', 'tgTest', 'supaClear', 'laborConfirm', 'laborUnconfirm', 'sealUpload', 'sealDel', 'guideEdit', 'doneMemo', 'staffLockToggle',
+    'cAdd', 'cDel', 'cVoid', 'cEdit', 'cSign', 'cStamp', 'cDeliver', 'cAttach', 'cFileDel', 'cSaveBack', 'sendReportNow', 'testAlarm',
+  ]);
+  const staffLocked = () => S.settings && S.settings.staffLock !== false && !ownerOn();
+  const blockedBanner = () => banner('테스트 기간에는 사장님만 바꿀 수 있습니다', '직원은 할 일 체크·메모·숫자 입력·게시판만 씁니다. 바꾸고 싶은 게 있으면 게시판에 건의로 올려 주세요.');
   /* 사용 중이면 5분 연장, 안 쓰면 자동 잠김 */
   ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => { if (ownerOn()) ownerExtend(); }, { passive: true }));
   setInterval(() => { if (ownerUntil && !ownerOn()) ownerLock(true); }, 15 * 1000);
@@ -960,6 +975,10 @@ const App = (() => {
     if (h2 && !h2.querySelector('.chip.store')) h2.insertAdjacentHTML('beforeend', `<span class="chip store">${esc(storeName())}</span>`);
     window.scrollTo(0, y);   // 체크할 때마다 화면이 위로 튀지 않게
     if (view === 'contracts') bindEditor();
+    if (staffLocked()) {
+      document.querySelectorAll('#main [data-act]').forEach((el) => { if (STAFF_BLOCK.has(el.dataset.act)) el.hidden = true; });
+      const sf = $('#side .sfoot'); if (sf && !sf.querySelector('.staffLockTag')) sf.insertAdjacentHTML('afterbegin', '<div class="staffLockTag">🔒 테스트 기간 — 체크·메모만</div>');
+    }
   }
 
   /* ── 게임 요소 — 활동 점수 · 레벨 · 배지 ─────────────────────────
@@ -3608,6 +3627,11 @@ const App = (() => {
         <span class="v">${pinOk(S.settings.orderPin) ? '설정됨 — 직원 기기에서 할 일 순서·이름을 바꿀 때 씁니다 (사장님 로그인 중에는 필요 없음)' : '미설정 — 직원 기기에서 순서를 바꾸려면 만드세요 (사장님 로그인 중에는 필요 없음)'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
       <p class="hint">할 일 화면의 순서는 기본으로 잠겨 있어 직원이 실수로 바꿀 수 없습니다. 할 일 화면 › <b>순서 바꾸기</b>에서 PIN 을 넣으면 10분 동안 손잡이(⠿)를 끌어 순서를 바꿀 수 있고, 새로고침하거나 10분이 지나면 다시 잠깁니다. 바꾼 순서는 매일 · 모든 기기에 같이 적용됩니다.</p>`}
 
+      <div class="hd sub2"><h3>직원 잠금 (테스트 기간)</h3></div>
+      <div class="setrow"><span>직원은 체크·메모·숫자 입력·게시판만</span>
+        <button class="btn sm${S.settings.staffLock !== false ? ' on' : ''}" data-act="staffLockToggle">${S.settings.staffLock !== false ? '켜짐' : '꺼짐'}</button></div>
+      <p class="hint">켜져 있으면 사장님 모드가 아닌 기기에서는 업무 추가·이름·시각·담당·순서 변경, 공지·근무표·직원·루틴·수조 설정 변경, 기록 삭제, CSV 가져오기가 모두 숨겨지고 막힙니다. 남는 것: 할 일 체크·건너뜀·메모, 완료 창의 숫자, 수조·폐사 기록, 매출·식자재 매입 입력, 게시판. 테스트가 끝나면 끄세요.</p>
+
       <div class="hd sub2"><h3>완료 메모</h3></div>
       <div class="setrow"><span>완료할 때 "어떻게 했나요" 메모</span>
         <span class="v">${[['req', '필수'], ['opt', '선택'], ['off', '끔']].map(([v, n]) => `<button class="btn sm${doneMemoMode() === v ? ' on' : ''}" data-act="doneMemo" data-v="${v}">${n}</button>`).join(' ')}</span></div>
@@ -5421,11 +5445,11 @@ const App = (() => {
           `<button class="rl${rec.by === x.name ? ' on' : ''}" data-menu="by:${esc(x.name)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
       ${rec.s !== 'todo' ? `<button class="btn big" data-menu="undo">되돌리기 (미완료로)</button>` : ''}
       ${rec.s === 'todo' ? `<button class="btn big" data-menu="skip">오늘만 건너뛰기</button>` : ''}
-      <div class="mlabel">오늘만 담당 바꾸기</div>
+      ${staffLocked() ? '' : `<div class="mlabel">오늘만 담당 바꾸기</div>
       <div class="roles big">${ROLE_OPTS.map((x) => `<button class="rl${roleOf(key, tid) === x ? ' on' : ''}" data-menu="role:${x}">${x}</button>`).join('')}</div>
-      <button class="btn big" data-menu="title">✏️ 이름 고치기 (매일 · 두 매장 적용)</button>
+      <button class="btn big" data-menu="title">✏️ 이름 고치기 (매일 · 두 매장 적용)</button>`}
       <button class="btn big" data-menu="note">📝 오늘 메모 남기기 · 고치기</button>
-      <button class="btn big" data-menu="memo">✏️ 설명 고치기 (매일 적용)</button>
+      ${staffLocked() ? '<p class="hint">테스트 기간에는 담당·이름·설명 변경은 사장님만 합니다.</p>' : `<button class="btn big" data-menu="memo">✏️ 설명 고치기 (매일 적용)</button>`}
     </div>`, null);
     $('#modal').dataset.tid = tid;
   }
@@ -5516,6 +5540,7 @@ const App = (() => {
       const mm = e.target.closest('[data-menu]');
       if (mm) {
         const tid = m.dataset.tid, key = viewKey(), rec = S.days[key].inst[tid], v = mm.dataset.menu;
+        if (staffLocked() && (v === 'title' || v === 'memo' || v.startsWith('role:'))) { blockedBanner(); return; }
         if (v === 'undo') { S.days[key].inst[tid] = { s: 'todo', role: rec.role }; }
         else if (v === 'skip') {
           const why = prompt('건너뛰는 이유를 적어주세요.\n(예: 재료 미입고)');
@@ -5533,6 +5558,7 @@ const App = (() => {
       if (!b) { if (e.target === m) closeModal(); return; }
       const a = b.dataset.act, id = b.dataset.id;
       const key = view === 'month' ? mdateKey() : viewKey();   // 편성 동작은 근무표에서 선택한 날짜 기준
+      if (STAFF_BLOCK.has(a) && staffLocked()) { blockedBanner(); return; }
 
       switch (a) {
         case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;
@@ -5746,6 +5772,7 @@ const App = (() => {
         case 'menu': taskMenu(id); break;
         case 'taskNote': taskNoteModal(id); break;
         case 'doneMemo': S.settings.doneMemo = b.dataset.v; save(); render(); break;
+        case 'staffLockToggle': S.settings.staffLock = S.settings.staffLock === false; save(); render(); break;
 
         case 'addExtra': {
           modal('오늘만 할 일', `<label>내용<input id="exTitle" placeholder="예: 배달 파트너 미팅"></label>`, () => {

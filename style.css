@@ -1426,3 +1426,8 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .tcNote.empty{color:var(--muted);border-left-color:var(--rule);background:transparent;padding:2px 0}
 
 .chip.heavy{background:var(--hall-bg);color:var(--hall);padding:1px 5px}
+
+/* 건의 전 팀 상의 — 중요 안내 */
+.fbImp{margin:0 0 10px;padding:9px 12px;border:1.5px solid var(--crit);border-radius:6px;background:var(--crit-soft);color:var(--ink);font-size:14px;line-height:1.55}
+.gImp{margin:6px 0 2px;padding:6px 10px;border-left:3px solid var(--crit);background:var(--crit-soft);font-size:13.5px;border-radius:0 4px 4px 0}
+.impChk{padding:8px 10px;border:1.5px solid var(--crit);border-radius:6px;background:var(--crit-soft);margin-top:8px}

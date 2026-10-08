@@ -802,7 +802,7 @@ const App = (() => {
           <li>다른 기기에서 다르게 보임</li>
           <li>화면·글자 깨짐 (특히 폰)</li>
           <li>알림이 안 오거나 두 번 옴 · 영상 완료 안 찍힘</li></ul></div>
-        <div class="card"><b>🙋 건의</b><ul>
+        <div class="card"><b>🙋 건의</b> <span class="chip crit">중요</span><div class="gImp">혼자 판단해서 올리지 말고 <b>반드시 팀원들과 상의한 뒤</b> 올립니다.</div><ul>
           <li>할 일 시간·담당이 실제와 다름</li>
           <li>빠진 업무 · 필요 없는 업무 · 이름이 현장 말과 다름</li>
           <li>누르는 횟수가 많다 · 글씨가 작다</li>
@@ -1340,6 +1340,7 @@ const App = (() => {
       <div class="fbHead"><b>🧪 오류·수정 요청은 이 양식으로</b><span class="chip wk">공유 게시판에 올라갑니다</span></div>
       <p class="hint" style="margin:0 0 8px">업무 › 공유 게시판 › 글 쓰기에서 종류를 <b>앱 오류</b> 또는 <b>앱 건의</b>로 고르면 아래 칸이 자동으로 채워집니다. 괄호 안 예시를 지우고 한 줄씩만 적으면 됩니다. 이름은 익명으로 해도 됩니다.</p>
       <pre class="fbTpl">${esc(FB_TEMPLATE)}</pre>
+      <div class="fbImp"><span class="chip crit">중요</span><b>건의는 혼자 판단해서 올리지 않습니다.</b> 반드시 같이 일하는 팀원들과 먼저 상의하고, 상의한 내용으로 올려 주세요. 오류 신고는 혼자 바로 올려도 됩니다.</div>
       <div class="rowbtns"><button class="btn primary sm" data-act="fbNew" data-c="앱 오류">🐛 오류 신고 쓰기</button><button class="btn sm" data-act="fbNew" data-c="앱 건의">🙋 건의 쓰기</button><button class="btn sm ghost" data-act="fbCopy">양식 복사</button></div>
       <p class="hint">제목은 한눈에 알 수 있게: "할 일 체크가 풀림", "근무표에 내 이름 없음"처럼 <b>어디 + 무엇</b>으로.</p>
     </div>`;
@@ -2303,6 +2304,7 @@ const App = (() => {
       <input id="isCOther" placeholder="다른 종류 직접 입력" value="${x.cat && !ISSUE_CATS.includes(x.cat) && !FB_CATS.includes(x.cat) ? esc(x.cat) : ''}" style="margin-top:6px">
       <label>제목<input id="isT" value="${esc(x.title || '')}" placeholder="${FB_CATS.includes(x.cat) ? '예: 할 일 체크가 풀림 (어디 + 무엇)' : '예: 룸2 에어컨 소음 — 손님 컴플레인'}"></label>
       <label>무슨 일이 있었나요<textarea id="isB" rows="${FB_CATS.includes(x.cat) ? 8 : 4}" placeholder="상황을 그대로 적으세요. 잘잘못보다 다음에 어떻게 할지가 중요합니다.">${esc(x.body || (FB_CATS.includes(x.cat) ? FB_TEMPLATE : ''))}</textarea></label>
+      <label class="chk impChk" id="isTeamWrap"${x.cat === '앱 건의' ? '' : ' hidden'}><input type="checkbox" id="isTeam"${x.team ? ' checked' : ''}> <span class="chip crit">중요</span> 이 건의는 <b>팀원들과 상의한 내용</b>입니다 (혼자 판단한 건의는 올리지 않습니다)</label>
       <label class="chk"><input type="checkbox" id="isAnon"${x.anon ? ' checked' : ''}> 🙈 익명으로 올리기 (이름을 남기지 않습니다)</label>
       <div id="isByWrap"${x.anon ? ' hidden' : ''}><label>작성자<input id="isBy" value="${esc(curBy)}" placeholder="이름을 적어 주세요" autocomplete="off"></label>
       <div class="roles wrap sm" id="isByChips">${S.staff.filter((st) => st.active).map((st) => `<button type="button" class="rl" data-who="${esc(st.name)}">${esc(st.name)}</button>`).join('')}</div></div>
@@ -2314,12 +2316,14 @@ const App = (() => {
       const cat = $('#isCOther').value.trim() || (catSel ? catSel.dataset.cat : '');
       if (!cat) { alert('종류를 골라 주세요.'); return false; }
       const anon = $('#isAnon').checked;
+      const team = !!($('#isTeam') && $('#isTeam').checked);
+      if (cat === '앱 건의' && !team) { alert('건의는 팀원들과 먼저 상의한 뒤 올립니다. 상의했다면 체크해 주세요.'); return false; }
       const by = anon ? '' : $('#isBy').value.trim();
       if (!anon && !by) { alert('작성자를 적거나 익명을 켜 주세요.'); return false; }
       const rec = {
         id: x.id || 'i' + Date.now(), cat, title, body: $('#isB').value.trim(),
         status: x.status || 'open', replies: x.replies || [],
-        by, anon, createdAt: x.createdAt || Date.now(), store: x.store || storeName(), updatedAt: Date.now(),
+        by, anon, team: team || undefined, createdAt: x.createdAt || Date.now(), store: x.store || storeName(), updatedAt: Date.now(),
       };
       if (x.id) SH.issues = issuesAll().map((i2) => (i2.id === x.id ? rec : i2));
       else issuesAll().push(rec);
@@ -2333,10 +2337,11 @@ const App = (() => {
     $('#isCats').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return;
       $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#isCOther').value = '';
       // 앱 오류·건의를 고르면 본문이 비어 있거나 양식 그대로일 때 양식을 채운다 (다른 종류로 바꾸면 양식 그대로인 경우만 비운다)
+      const tw = $('#isTeamWrap'); if (tw) tw.hidden = b.dataset.cat !== '앱 건의';
       const ta = $('#isB'), isFb = FB_CATS.includes(b.dataset.cat), raw = ta.value.trim();
       if (isFb && (!raw || raw === FB_TEMPLATE)) { ta.value = FB_TEMPLATE; ta.rows = 8; $('#isT').placeholder = '예: 할 일 체크가 풀림 (어디 + 무엇)'; }
       else if (!isFb && raw === FB_TEMPLATE) { ta.value = ''; ta.rows = 4; } });
-    $('#isCOther').addEventListener('input', () => { if ($('#isCOther').value.trim()) $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); });
+    $('#isCOther').addEventListener('input', () => { if ($('#isCOther').value.trim()) { $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); const tw = $('#isTeamWrap'); if (tw) tw.hidden = true; } });
     $('#isByChips').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return; $('#isBy').value = b.dataset.who; });
     $('#isAnon').addEventListener('change', () => { $('#isByWrap').hidden = $('#isAnon').checked; });
   }
@@ -2345,7 +2350,7 @@ const App = (() => {
     const x = issuesAll().find((i2) => i2.id === id); if (!x) return;
     modal(x.title, `
       <div class="rcTop"><span class="ipill${x.status === 'done' ? ' done' : ''}">${x.status === 'done' ? '해결 완료' : '진행 중'}</span>
-        <span class="chip store">${esc(x.store || '')}</span><span class="chip cat">${esc(x.cat)}</span>
+        <span class="chip store">${esc(x.store || '')}</span><span class="chip cat">${esc(x.cat)}</span>${x.team ? '<span class="chip today">팀 상의 완료</span>' : ''}
         <span class="opt">${x.anon ? '🙈 익명' : esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR')}</span></div>
       ${x.body ? `<div class="rcBody">${esc(x.body)}</div>` : ''}
       ${(x.replies || []).map((r) => `<div class="irep${r.fix ? ' fix' : ''}">${r.fix ? '✅ ' : ''}${esc(r.text)}

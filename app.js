@@ -680,7 +680,97 @@ const App = (() => {
         return `${st ? st.name : '?'}(${(e.roles || []).join('·')})`;
       }).join(' '));
     }
+    const coach = buildCoach(key, { isPending });
+    if (coach) L.push('', coach);
     return { text: L.join('\n'), pct, critLeft: critLeft.length, done, base };
+  }
+
+  /* 오늘 평가·코칭 — 서버 daily_coach(supabase_coach.sql)와 같은 규칙 (사장님 요청 2026-10-08).
+     🟢 잘한 날: 90%↑·중요 미완료 0·늦게 한 업무 2건↓ / 🟡 보통: 70%↑·중요 미완료 1건↓ / 🔴 점검 필요 */
+  function dayStats(k) {
+    const day = S.days[k]; if (!day) return null;
+    let done = 0, base = 0, deaths = 0;
+    Object.keys(day.inst).forEach((id) => {
+      const t = tpl(id), r = day.inst[id];
+      if (!t || t.rest || r.auto || r.s === 'skip') return;
+      base++;
+      if (r.s !== 'done') return;
+      done++;
+      if (t.ev === 'deaths' && r.ev != null) deaths += typeof r.ev === 'object' ? Object.values(r.ev).reduce((a, b) => a + (Number(b) || 0), 0) : (Number(r.ev) || 0);
+    });
+    return { done, base, deaths };
+  }
+  function buildCoach(key, o) {
+    const day = S.days[key]; if (!day) return '';
+    const isPending = (o && o.isPending) || (() => false);
+    const memoMode = doneMemoMode();
+    let total = 0, done = 0, skip = 0, pending = 0, crit = 0, critDone = 0, critLeft = 0, late = 0, lateMax = 0, lateTitle = '', memo = 0, noname = 0, deaths = 0;
+    const lateList = [], by = {};
+    Object.keys(day.inst).forEach((id) => {
+      const t = tpl(id), r = day.inst[id];
+      if (!t || t.rest || r.auto) return;
+      total++;
+      if (isPending(id)) { pending++; return; }
+      if (r.s === 'skip') { skip++; return; }
+      if (t.crit) { crit++; if (r.s === 'done') critDone++; else if (r.s === 'todo') critLeft++; }
+      if (r.s !== 'done') return;
+      done++;
+      if ((r.note || '').trim()) memo++;
+      if (r.by) by[r.by] = (by[r.by] || 0) + 1; else noname++;
+      const due = minutesOf(t.due || t.sort), at = minutesOf(r.at);
+      if (due != null && at != null && at > due + (t.grace || 30)) {
+        late++; if (at - due > lateMax) { lateMax = at - due; lateTitle = t.title; }
+        if (lateList.length < 3) lateList.push(`${t.title}(+${at - due}분)`);
+      }
+      if (t.ev === 'deaths' && r.ev != null) deaths += typeof r.ev === 'object' ? Object.values(r.ev).reduce((a, b) => a + (Number(b) || 0), 0) : (Number(r.ev) || 0);
+    });
+    const base = total - skip - pending, pct = base ? Math.round(done * 100 / base) : 0;
+    let hd = 0, hb = 0, hdt = 0, hdd = 0;
+    for (let i = 1; i <= 7; i++) { const st = dayStats(shift(key, -i)); if (st && st.base > 0) { hd += st.done; hb += st.base; hdt += st.deaths; hdd++; } }
+    const avg = hb ? Math.round(hd * 100 / hb) : null, davg = hdd ? Math.round(hdt / hdd * 10) / 10 : null;
+    const fb = issuesAll().filter((x) => FB_CATS.includes(x.cat) && dateKey(new Date(x.createdAt || 0)) === key).length;
+
+    const grade = (pct >= 90 && critLeft === 0 && late <= 2) ? '🟢 잘한 날' : (pct >= 70 && critLeft <= 1) ? '🟡 보통' : '🔴 점검 필요';
+    let sum;
+    if (!base) sum = '평가할 업무가 없었습니다.';
+    else if (critLeft) sum = `중요 업무 ${critLeft}건이 끝까지 안 됐습니다. 다른 게 아무리 잘 돼도 이건 오늘의 구멍입니다.`;
+    else if (pct >= 95 && !late) sum = '시간 안에 거의 다 해냈습니다. 이 정도면 체크리스트가 아니라 습관입니다.';
+    else if (pct >= 90) sum = '큰 틀은 잘 돌아갔습니다. 남은 건 "제시간에"입니다.';
+    else if (pct >= 70) sum = '절반 이상은 했지만 빠진 게 눈에 띕니다. 바쁜 날일수록 체크리스트를 먼저 열어야 합니다.';
+    else sum = '오늘은 체크리스트가 거의 안 돌았습니다. 앱을 안 연 건지, 일을 안 한 건지부터 확인이 필요합니다.';
+
+    const good = [], bad = [];
+    if (crit && !critLeft) good.push(`중요 업무 ${crit}건 전부 완료`);
+    if (avg != null && pct >= avg + 10) good.push(`7일 평균(${avg}%)보다 ${pct - avg}%p 높음`);
+    if (done && memoMode !== 'off' && memo >= done * 0.8) good.push(`메모 ${memo}/${done}건 — 어떻게 했는지 잘 남겼음`);
+    if (done >= 5 && !late) good.push('늦게 한 업무 없음');
+    if (davg != null && !deaths && davg >= 1) good.push(`폐사 0 (평소 하루 ${davg}마리)`);
+    if (late) bad.push(`늦게 한 업무 ${late}건 — ${lateList.join(', ')}`);
+    if (done && memoMode === 'req' && memo < done * 0.5) bad.push(`메모가 ${done}건 중 ${memo}건뿐 — 체크만 하고 넘어감`);
+    if (noname) bad.push(`이름 없이 완료 ${noname}건 — 누가 했는지 모름`);
+    if (skip >= 3) bad.push(`건너뜀 ${skip}건 — 사유 확인 필요`);
+    if (avg != null && pct <= avg - 10) bad.push(`7일 평균(${avg}%)보다 ${avg - pct}%p 낮음`);
+    if (davg != null && deaths >= 3 && deaths > davg * 1.5) bad.push(`폐사 ${deaths}마리 — 평소(${davg})보다 많음, 수조 온도·염도 확인`);
+
+    let tip;
+    if (critLeft) tip = '시간대 시작할 때 "중요" 표시부터 끝내기. 중요 업무는 미루면 다음 날 손님이 느낍니다.';
+    else if (late >= 3) tip = `알림이 울리면 그 자리에서 처리하기. 가장 많이 늦은 건 ${lateTitle}(+${lateMax}분)입니다.`;
+    else if (done && memoMode === 'req' && memo < done * 0.5) tip = '완료할 때 "어떻게 했나요"에 한 줄이라도. 테스트 기간엔 이 메모가 제일 중요한 자료입니다.';
+    else if (noname) tip = '완료할 때 이름을 고르기. 누가 했는지 남아야 잘한 사람을 챙길 수 있습니다.';
+    else if (pct < 90) tip = '오픈 때 오늘 할 일을 한 번 훑고 시작하기. 빠지는 건 대부분 "몰라서"가 아니라 "잊어서"입니다.';
+    else if (davg != null && deaths > davg * 1.5 && deaths >= 3) tip = '내일 아침 수조 온도·염도·산소 먼저 확인하고 폐사 기록 남기기.';
+    else tip = '오늘처럼. 내일은 메모를 한 줄 더 구체적으로 적어 보세요.';
+
+    const who = Object.entries(by).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([n, c]) => `${n} ${c}`);
+    if (noname) who.push(`이름 없음 ${noname}`);
+
+    const L = ['━━━━━━━━━━━━', `📊 오늘 평가 · ${grade} ${avg != null ? `(7일 평균 ${avg}% → 오늘 ${pct}%)` : `(오늘 ${pct}%)`}`, sum];
+    if (good.length) L.push('', '👍 잘한 것', ...good.slice(0, 3).map((g) => '· ' + g));
+    if (bad.length) L.push('', '👀 아쉬운 것', ...bad.slice(0, 3).map((b) => '· ' + b));
+    L.push('', '🎯 내일 한 가지', '· ' + tip);
+    if (who.length) L.push('', '👥 오늘 손: ' + who.join(' · '));
+    if (fb) L.push(`🧪 오늘 접수된 앱 오류·건의 ${fb}건 — 테스트 안내 페이지에서 확인`);
+    return L.join('\n');
   }
 
   const serverSends = () => !!(Store.supa && Store.supa.signedIn);

@@ -85,6 +85,7 @@ begin
 end $$;
 
 -- 마감 리포트 문구 만들기 (앱의 buildReport 와 같은 규칙)
+-- ※ 평가·코칭 구간은 supabase_coach.sql 이 덧붙인다. 이 파일을 다시 실행했다면 그 파일도 다시 실행할 것.
 create or replace function public.daily_report(p_store text, p_key text default null) returns text
 language plpgsql security definer set search_path = public as $$
 declare

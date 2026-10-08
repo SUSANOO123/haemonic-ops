@@ -1167,14 +1167,98 @@ const App = (() => {
     return out;
   }
 
-  function tankAlerts() {
-    const T = S.tanks; if (!T || !T.items) return [];
-    const c = T.cycle || TANK_DEFAULT().cycle, tk = dateKey(), out = [];
-    T.items.forEach((it) => {
-      if (it.water && it.water.date && diffDays(it.water.date, tk) > c.water.late) out.push(`수조 ${it.n} 해수 교체`);
-      if (it.clean && it.clean.date && diffDays(it.clean.date, tk) > c.clean.late) out.push(`수조 ${it.n} 청소`);
+  /* ── 폐사 기록 · 3일 안에 사용 (사장님 요청 2026-10-08) ──
+     폐사는 두 곳에서 들어온다: ① 할 일(갑각류 상태 확인 등)에서 입력한 폐사 마릿수 ② 수조 관리표에서 직접 적은 기록(S.deaths[]).
+     폐사한 날 + 3일이 사용 기한. 사용 처리는 S.deadUse[key] = { at, by, how } 로 남긴다. */
+  const DEAD_DAYS = 3;
+  function deadEntries(days) {
+    const tk = dateKey(), from = shift(tk, -(days || 30)), out = [];
+    Object.entries(S.days || {}).forEach(([k, d]) => {
+      if (k < from || k > tk) return;
+      Object.entries(d.inst || {}).forEach(([tid, r]) => {
+        if (!r || r.s !== 'done' || r.ev == null) return;
+        const t = tpl(tid); if (!t || t.ev !== 'deaths') return;
+        if (typeof r.ev === 'object') SPECIES.forEach((sp) => { const n = Number(r.ev[sp]) || 0; if (n > 0) out.push({ key: `${k}|${tid}|${sp}`, date: k, sp, n, by: r.by || '', src: t.title }); });
+        else if (Number(r.ev) > 0) out.push({ key: `${k}|${tid}|기타`, date: k, sp: '기타', n: Number(r.ev), by: r.by || '', src: t.title });
+      });
     });
-    return out;
+    (S.deaths || []).forEach((x) => { if (x.date >= from) out.push({ key: `m|${x.id}`, id: x.id, date: x.date, sp: x.sp, n: Number(x.n) || 0, by: x.by || '', tank: x.tank, note: x.note, src: '직접 기록' }); });
+    out.forEach((e) => { e.use = (S.deadUse || {})[e.key] || null; e.due = addDays(e.date, DEAD_DAYS); e.left = diffDays(tk, e.due); });
+    // 미사용이 위(기한 급한 순), 사용 완료는 아래(최근 순)
+    return out.sort((a, b) => (!!a.use - !!b.use) || (a.use ? b.date.localeCompare(a.date) : a.left - b.left || a.date.localeCompare(b.date)));
+  }
+  const deadLeftLabel = (e) => e.left > 1 ? `${md(e.due)}까지 · ${e.left}일 남음` : e.left === 1 ? `내일(${md(e.due)})까지` : e.left === 0 ? '오늘까지 사용' : `기한 ${-e.left}일 지남`;
+  const deadLeftCls = (e) => e.left >= 2 ? 'ok' : e.left === 1 ? 'warn' : 'bad';
+  function deadSection() {
+    const all = deadEntries(30), open = all.filter((e) => !e.use), used = all.filter((e) => e.use);
+    const sum = (arr) => arr.reduce((a, e) => a + e.n, 0);
+    const today = open.filter((e) => e.left === 0), over = open.filter((e) => e.left < 0);
+    const rowOf = (e) => `<tr class="${e.use ? 'used' : deadLeftCls(e)}">
+      <td>${md(e.date)} (${WD[new Date(e.date + 'T00:00:00').getDay()]})</td>
+      <td><b>${esc(e.sp)}</b></td><td class="r"><b>${e.n}</b>마리</td>
+      <td>${e.tank ? `수조 ${esc(String(e.tank))}` : '<span class="dim">—</span>'}</td>
+      <td>${e.use ? `<span class="tkAgo used">사용 완료</span> <small class="mut">${esc(e.use.by || '')} ${esc(e.use.at || '')}${e.use.how ? ' · ' + esc(e.use.how) : ''}</small>` : `<span class="tkAgo ${deadLeftCls(e)}">${deadLeftLabel(e)}</span>`}</td>
+      <td class="mut">${esc(e.by || '')}<br><small>${esc(e.src)}</small>${e.note ? `<br><small>${esc(e.note)}</small>` : ''}</td>
+      <td>${e.use ? `<button class="btn sm ghost" data-act="deadUnuse" data-key="${esc(e.key)}">되돌리기</button>` : `<button class="btn sm primary" data-act="deadUse" data-key="${esc(e.key)}">사용 완료</button>`}${e.id ? ` <button class="more" data-act="deadDel" data-id="${e.id}" aria-label="삭제">✕</button>` : ''}</td></tr>`;
+    return `<div class="hd sub2"><h3>🦀 폐사 기록 — 3일 안에 사용</h3>
+      <button class="btn sm primary" data-act="deadAdd" style="margin-left:auto">+ 폐사 기록</button></div>
+    <p class="hint" style="margin:0 0 8px">폐사한 갑각류는 <b>폐사한 날부터 3일 안에</b> 사용해야 합니다. 할 일에서 입력한 폐사 마릿수는 여기에 자동으로 들어오고, 사용했으면 <b>사용 완료</b>를 눌러 누가 어떻게 썼는지 남깁니다.</p>
+    ${open.length ? `<div class="notice ${over.length || today.length ? 'warn' : ''}"><b>사용 대기 ${sum(open)}마리</b>${today.length ? ` · <b class="crit">오늘까지 ${sum(today)}마리</b>` : ''}${over.length ? ` · <b class="crit">기한 지남 ${sum(over)}마리</b>` : ''}${!today.length && !over.length ? ' · 아직 여유 있음' : ''}</div>` : ''}
+    ${all.length ? `<div class="tkLogWrap"><table class="tkLog deadTbl">
+      <thead><tr><th>폐사일</th><th>품종</th><th class="r">마릿수</th><th>수조</th><th>사용 기한 · 상태</th><th>기록</th><th></th></tr></thead>
+      <tbody>${all.map(rowOf).join('')}</tbody>
+      <tfoot><tr><td colspan="2">최근 30일</td><td class="r">${sum(all)}마리</td><td colspan="4">사용 대기 ${sum(open)} · 사용 완료 ${sum(used)}</td></tr></tfoot></table></div>`
+      : '<div class="tkEmptyLog">최근 30일 폐사 기록이 없습니다. 할 일에서 폐사를 입력하거나 위 "+ 폐사 기록"으로 남기세요.</div>'}`;
+  }
+  function deadAddModal() {
+    const T = tanksOf();
+    modal('폐사 기록', `<label>폐사일<input type="date" id="ddDate" value="${dateKey()}" max="${dateKey()}"></label>
+      <div class="mlabel">품종</div><div class="roles" id="ddSp">${SPECIES.map((sp, i) => `<button type="button" class="rl${i === 0 ? ' on' : ''}" data-sp="${esc(sp)}">${esc(sp)}</button>`).join('')}</div>
+      <div class="frow"><label>마릿수<input type="number" id="ddN" min="1" step="1" value="1" inputmode="numeric"></label>
+      <label>수조 번호 <span class="opt">선택</span><select id="ddTank"><option value="">—</option>${T.items.map((it) => `<option value="${it.n}">수조 ${it.n}</option>`).join('')}</select></label></div>
+      <label>메모 <span class="opt">선택</span><input id="ddNote" placeholder="예: 집게 떨어짐 · 활력 저하 후 폐사"></label>
+      ${whoInput(whoNow())}
+      <p class="hint">저장하면 폐사일 + 3일이 사용 기한으로 잡힙니다.</p>`, () => {
+      const n = Number($('#ddN').value); if (!(n > 0)) { alert('마릿수를 넣어 주세요.'); return false; }
+      const by = whoValue(); if (!by) { alert('누가 기록하는지 적어 주세요.'); return false; }
+      const sp = (document.querySelector('#ddSp .rl.on') || {}).dataset?.sp || SPECIES[0];
+      S.deaths = S.deaths || [];
+      S.deaths.push({ id: 'd' + Date.now(), date: $('#ddDate').value || dateKey(), sp, n, tank: $('#ddTank').value || undefined, note: $('#ddNote').value.trim() || undefined, by, at: stamp() });
+      save(); render();
+    }, '저장');
+    $('#ddSp').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return; $('#ddSp').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); });
+    bindWhoChips();
+  }
+  function deadUseModal(key) {
+    const e = deadEntries(60).find((x) => x.key === key); if (!e) return;
+    modal(`사용 완료 — ${e.sp} ${e.n}마리 (${md(e.date)} 폐사)`, `
+      <div class="mlabel">어떻게 사용했나요</div>
+      <div class="roles wrap" id="duHow">${['찜 서비스', '직원 식사', '육수·요리용', '폐기'].map((h) => `<button type="button" class="rl" data-how="${h}">${h}</button>`).join('')}</div>
+      <input id="duHowIn" placeholder="직접 입력 (예: 단골 서비스로 제공)" style="margin-top:6px">
+      ${whoInput(whoNow())}`, () => {
+      const by = whoValue(); if (!by) { alert('누가 처리했는지 적어 주세요.'); return false; }
+      const sel = document.querySelector('#duHow .rl.on');
+      const how = $('#duHowIn').value.trim() || (sel ? sel.dataset.how : '');
+      S.deadUse = S.deadUse || {}; S.deadUse[key] = { at: stamp(), by, how: how || undefined };
+      save(); render();
+    }, '저장');
+    $('#duHow').addEventListener('click', (ev) => { const b = ev.target.closest('.rl'); if (!b) return; $('#duHow').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#duHowIn').value = ''; });
+    bindWhoChips();
+  }
+  /* 사용 기한이 오늘이거나 지난 폐사 — 수조 관리표 상단·대시보드 "수조 처리"에 같이 뜬다 */
+  function deadAlerts() {
+    return deadEntries(30).filter((e) => !e.use && e.left <= 0).map((e) => `폐사 ${e.sp} ${e.n}마리 ${e.left === 0 ? '오늘까지 사용' : '사용 기한 지남'}`);
+  }
+  function tankAlerts() {
+    const T = S.tanks, tk = dateKey(), out = [];
+    if (T && T.items) {
+      const c = T.cycle || TANK_DEFAULT().cycle;
+      T.items.forEach((it) => {
+        if (it.water && it.water.date && diffDays(it.water.date, tk) > c.water.late) out.push(`수조 ${it.n} 해수 교체`);
+        if (it.clean && it.clean.date && diffDays(it.clean.date, tk) > c.clean.late) out.push(`수조 ${it.n} 청소`);
+      });
+    }
+    return out.concat(deadAlerts());
   }
 
   function vTanks() {
@@ -1221,6 +1305,8 @@ const App = (() => {
       <span class="tkFirst inl">먼저 사용 ①</span><span class="hint" style="margin:0">= 같은 품종 중 가장 먼저 들어온 칸. 주문 나가면 여기서 먼저 뺍니다</span></div>
 
     <p class="hint">수조 개수와 교체·청소 주기는 <b>설정 → 수조 관리</b>에서 바꿉니다.</p>
+
+    ${deadSection()}
 
     <div class="hd sub2"><h3>해수 교체 · 청소 기록</h3><span class="hint" style="margin:0">위 칸에서 기록할 때마다 한 줄씩 · 최근 것이 위</span></div>
     ${T.care.length ? `<div class="tkLogWrap"><table class="tkLog">
@@ -5545,6 +5631,10 @@ const App = (() => {
         case 'pickWhoAll': pickWho(true); break;
         case 'tankDate': tankDateModal(Number(b.dataset.n), b.dataset.kind); break;
         case 'tankStock': tankStockModal(Number(b.dataset.n), b.dataset.pos); break;
+        case 'deadAdd': deadAddModal(); break;
+        case 'deadUse': deadUseModal(b.dataset.key); break;
+        case 'deadUnuse': { if (S.deadUse) delete S.deadUse[b.dataset.key]; save(); render(); break; }
+        case 'deadDel': { if (!confirm('이 폐사 기록을 지울까요?')) return; S.deaths = (S.deaths || []).filter((x) => x.id !== b.dataset.id); if (S.deadUse) delete S.deadUse['m|' + b.dataset.id]; save(); render(); break; }
         case 'tankCareDel': {
           if (!confirm('이 기록 한 줄을 지웁니다. 위 표의 칸은 그대로 둡니다.')) break;
           const T = tanksOf(); T.care = T.care.filter((x) => x.id !== id); save(); render(); break;
@@ -6136,6 +6226,8 @@ const App = (() => {
     S.ui.smonth = null; S.ui.pmonth = null; S.ui.lmonth = null;   // 회계 화면은 열 때마다 이번 달부터
     if (!S.notices) S.notices = [];
     if (!S.issues) S.issues = [];
+    if (!S.deaths) S.deaths = [];
+    if (!S.deadUse) S.deadUse = {};
     if (!S.contracts) S.contracts = [];
     if (!S.blobs) S.blobs = {};
     if (!S.settings) S.settings = { ...DEFAULT_SETTINGS };

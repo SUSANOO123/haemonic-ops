@@ -252,7 +252,7 @@ const Store = (() => {
       if (each) Object.keys(res).forEach((key) => { if (n && o && n[key] && o[key]) res[key] = each(n[key], o[key]); });
       return res;
     };
-    [['purchases', 'id'], ['contracts', 'id'], ['recipes', 'id'], ['notices', 'id'], ['issues', 'id'], ['training', 'id'],
+    [['purchases', 'id'], ['contracts', 'id'], ['recipes', 'id'], ['notices', 'id'], ['issues', 'id'], ['training', 'id'], ['deaths', 'id'],
       ['health', 'id'], ['staff', 'name'], ['trainSeen', null]].forEach(([f, by]) => {
       const v = unionBy(newer[f], older[f], by); if (v !== undefined) out[f] = v;
     });
@@ -266,7 +266,7 @@ const Store = (() => {
       extras: unionBy(n.extras, o.extras, 'id') || [],
       notified: { ...(o.notified || {}), ...(n.notified || {}) },
     });
-    ['days', 'sales', 'roster', 'sched', 'payroll', 'hygiene', 'blobs'].forEach((f) => {
+    ['days', 'sales', 'roster', 'sched', 'payroll', 'hygiene', 'blobs', 'deadUse'].forEach((f) => {
       const v = unionObj(newer[f], older[f], f === 'days' ? mergeDay : null); if (v !== undefined) out[f] = v;
     });
     /* 설정은 최신 쪽이 이기되, 최신 쪽에 비어 있는 값(봇 토큰·대화방·PIN 등)은 예전 값을 지우지 않는다.

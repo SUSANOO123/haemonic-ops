@@ -1431,3 +1431,10 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .fbImp{margin:0 0 10px;padding:9px 12px;border:1.5px solid var(--crit);border-radius:6px;background:var(--crit-soft);color:var(--ink);font-size:14px;line-height:1.55}
 .gImp{margin:6px 0 2px;padding:6px 10px;border-left:3px solid var(--crit);background:var(--crit-soft);font-size:13.5px;border-radius:0 4px 4px 0}
 .impChk{padding:8px 10px;border:1.5px solid var(--crit);border-radius:6px;background:var(--crit-soft);margin-top:8px}
+
+/* 폐사 기록 · 3일 사용 기한 */
+.deadTbl tr.bad td{background:var(--crit-soft)}
+.deadTbl tr.warn td{background:var(--hall-bg)}
+.deadTbl tr.used td{opacity:.7}
+.tkAgo.used{background:var(--any-bg);color:var(--any)}
+.notice .crit{color:var(--crit)}

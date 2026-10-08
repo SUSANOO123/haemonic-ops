@@ -801,9 +801,9 @@ const App = (() => {
 
       <h3>매일 세 가지</h3>
       <ol class="gSteps">
-        <li><div><b>출근하면 "지금 누구세요?"에서 내 이름</b><div class="mut">이름이 없으면 사장님께 바로 말하기</div></div></li>
-        <li><div><b>업무는 끝내자마자 체크</b><div class="mut">몰아서 체크 ✕ · 못 한 건 "건너뜀" + 이유 한 줄</div></div></li>
-        <li><div><b>숫자는 실제 값 그대로</b><div class="mut">수온·염도 · 폐사 마릿수 · 매출 kg(매장/배달) · 폐사는 3일 안에 쓰고 "사용 완료"</div></div></li>
+        <li><div><b>업무는 끝내자마자 체크 — 내 이름 고르고 "어떻게 했나요" 한 줄</b><div class="mut">몰아서 체크 ✕ · 못 한 건 "건너뜀" + 이유 · 내 이름이 없으면 사장님께</div></div></li>
+        <li><div><b>숫자는 실제 값 그대로</b><div class="mut">수온·염도 · 폐사 마릿수 · 매출 kg·주문 건(매장/배달) · 폐사는 3일 안에 쓰고 "사용 완료"</div></div></li>
+        <li><div><b>거슬리면 그때 바로 게시판에</b><div class="mut">오류는 바로 · 건의는 팀원과 상의한 뒤 (맨 위 버튼)</div></div></li>
       </ol>
       <p class="hint" style="margin-top:6px">교육 영상 시청은 테스트 기간에는 하지 않습니다. 안내가 있을 때 시작합니다.</p>
 
@@ -931,7 +931,7 @@ const App = (() => {
 
   function render() {
     const who = S.ui.whoDate === dateKey() ? S.ui.who : null;
-    const whoBtn = `<button class="whoBtn" data-act="pickWho">${who ? esc(who) : '지금 누구세요?'}</button>`;
+    const whoBtn = S.settings.askWho ? '<div class="hint" style="margin:0">완료할 때마다 이름을 고릅니다</div>' : `<button class="whoBtn" data-act="pickWho">${who ? esc(who) : '지금 누구세요?'}</button>`;
 
     const mt = Store.meta;
     const storeBtns = mt ? mt.stores.map((st) =>
@@ -6276,6 +6276,7 @@ const App = (() => {
     }
     S.templates.forEach((t) => { if (!t.scope) t.scope = t.store || 'all'; });
     // 마감 리포트 시각 21:30 → 21:50 (사장님 결정 2026-10-06). 한 번만 바꾸고 표시해 둔다 — 이후엔 설정에서 바꾼 값을 그대로 둔다
+    if (S.settings && !S.settings.askWhoV2) { S.settings.askWho = true; S.settings.askWhoV2 = 1; }   // 2026-10-08: 출근 때 이름 선택 대신 완료할 때마다 고른다
     if (S.settings && !S.settings.reportAtV2) { if (!S.settings.reportAt || S.settings.reportAt === '21:30' || S.settings.reportAt === '22:30') S.settings.reportAt = '21:50'; S.settings.reportAtV2 = 1; }
     /* 앱을 새로 열면 항상 오늘·전체 보기로 시작한다.
        공용 PC라 역할 필터가 남아 있으면 다음 사람이 자기 항목을 못 보게 된다. */

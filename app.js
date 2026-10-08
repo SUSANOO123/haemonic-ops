@@ -799,13 +799,13 @@ const App = (() => {
       <div class="tkLogWrap"><table class="tkLog gTbl"><thead><tr><th>회차</th><th>${esc(storeName())}</th><th>이번에 보는 것</th></tr></thead>
       <tbody>${rounds.map((r) => `<tr><td><b>${r.n}</b></td><td>${dateCell(r)}</td><td>${esc(r.focus)}</td></tr>`).join('')}</tbody></table></div>
 
-      <h3>매일 네 가지</h3>
+      <h3>매일 세 가지</h3>
       <ol class="gSteps">
         <li><div><b>출근하면 "지금 누구세요?"에서 내 이름</b><div class="mut">이름이 없으면 사장님께 바로 말하기</div></div></li>
         <li><div><b>업무는 끝내자마자 체크</b><div class="mut">몰아서 체크 ✕ · 못 한 건 "건너뜀" + 이유 한 줄</div></div></li>
-        <li><div><b>숫자는 실제 값 그대로</b><div class="mut">수온·염도 · 폐사 마릿수 · 매출 kg(매장/배달)</div></div></li>
-        <li><div><b>교육 영상 하루 한 편 + "내일 적용할 것" 한 줄</b><div class="mut">90% 이상 봐야 완료로 잡힘</div></div></li>
+        <li><div><b>숫자는 실제 값 그대로</b><div class="mut">수온·염도 · 폐사 마릿수 · 매출 kg(매장/배달) · 폐사는 3일 안에 쓰고 "사용 완료"</div></div></li>
       </ol>
+      <p class="hint" style="margin-top:6px">교육 영상 시청은 테스트 기간에는 하지 않습니다. 안내가 있을 때 시작합니다.</p>
 
       <h3>이런 게 보이면 맨 위 버튼으로 알려 주세요</h3>
       <div class="gTwo">
@@ -813,7 +813,7 @@ const App = (() => {
           <li>눌렀는데 반응 없음 · 체크가 풀림 · 두 번 체크됨</li>
           <li>다른 기기에서 다르게 보임</li>
           <li>화면·글자 깨짐 (특히 폰)</li>
-          <li>알림이 안 오거나 두 번 옴 · 영상 완료 안 찍힘</li></ul></div>
+          <li>알림이 안 오거나 두 번 옴</li></ul></div>
         <div class="card"><b>🙋 건의</b> <span class="chip crit">중요</span><div class="gImp">혼자 판단해서 올리지 말고 <b>반드시 팀원들과 상의한 뒤</b> 올립니다.</div><ul>
           <li>할 일 시간·담당이 실제와 다름</li>
           <li>빠진 업무 · 필요 없는 업무 · 이름이 현장 말과 다름</li>

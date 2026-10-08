@@ -1574,8 +1574,9 @@ const App = (() => {
       <button class="ck" data-act="toggle" data-id="${tid}" aria-label="${esc(t.title)} 완료"${opt.isFuture ? ' disabled' : ''}>${rec.s === 'done' ? '✓' : rec.s === 'skip' ? '–' : ''}</button>
       <button class="tcMain" data-act="cardOpen" data-id="${tid}">
         <div class="tcTitle"><span class="chip ${rc}">${role}</span>${esc(t.title)}${t.crit ? '<span class="chip crit">중요</span>' : ''}${rep.t === 'weekly' ? `<span class="chip wk">주 ${rep.days.length}회 · ${repDays(t)}</span>` : ''}${late ? '<span class="chip late">지연</span>' : ''}${missed ? '<span class="chip missed">미완료</span>' : ''}</div>
-        ${rec.s === 'done' ? `<div class="tcBy ok">${rec.by ? esc(rec.by) + ' · ' : ''}${rec.at || ''}${rec.ev != null ? ` · ${t.ev === 'deaths' || typeof rec.ev === 'object' ? esc(deathsLabel(rec.ev)) : esc(t.evLabel || '입력') + ' ' + esc(rec.ev)}` : ''}${rec.note ? ` · ${esc(rec.note)}` : ''}</div>` : ''}
+        ${rec.s === 'done' ? `<div class="tcBy ok">${rec.by ? esc(rec.by) + ' · ' : ''}${rec.at || ''}${rec.ev != null ? ` · ${t.ev === 'deaths' || typeof rec.ev === 'object' ? esc(deathsLabel(rec.ev)) : esc(t.evLabel || '입력') + ' ' + esc(rec.ev)}` : ''}</div>` : ''}
         ${rec.s === 'skip' ? (rec.auto ? `<div class="tcBy auto">자동 완료 — ${esc(rec.reason || '')}</div>` : `<div class="tcBy warn">건너뜀 — ${esc(rec.reason || '')}</div>`) : ''}
+        ${rec.note ? `<div class="tcNote">📝 ${esc(rec.note)}</div>` : (rec.s === 'done' && !rec.auto && !opt.isFuture ? `<div class="tcNote empty">📝 메모 없음</div>` : '')}
         <div class="tcBody">
           ${t.memo ? `<div class="tcMemo">${esc(t.memo)}</div>` : ''}
           <div class="tcMeta">담당 ${role}${tplScope(t) !== 'all' ? ` · ${esc(scopeName(tplScope(t)))}만` : ''}${t.support ? ` · 보조 ${t.support}` : ''}${t.deadline ? ` · 마감 ${t.deadline}` : ''}${evLabel ? ` · ${evLabel}` : ''}</div>
@@ -1584,6 +1585,7 @@ const App = (() => {
       <span class="tcRight">
         ${canDrag ? `<button class="tTime" data-act="cardTime" data-id="${tid}" title="시각 바꾸기">${esc(t.time || '')} ✎</button>` : ''}
         <span class="repBadge">${repLabel}</span>
+        ${opt.isFuture || rec.auto ? '' : `<button class="more" data-act="taskNote" data-id="${tid}" title="메모 남기기" aria-label="메모">📝</button>`}
         ${opt.isFuture ? '' : `<button class="more" data-act="menu" data-id="${tid}" aria-label="더보기">⋯</button>`}
       </span>
     </div>`;
@@ -3423,6 +3425,11 @@ const App = (() => {
         <span class="v">${pinOk(S.settings.orderPin) ? '설정됨 — 직원 기기에서 할 일 순서·이름을 바꿀 때 씁니다 (사장님 로그인 중에는 필요 없음)' : '미설정 — 직원 기기에서 순서를 바꾸려면 만드세요 (사장님 로그인 중에는 필요 없음)'} <button class="btn sm" data-act="orderPinSet">${pinOk(S.settings.orderPin) ? 'PIN 바꾸기' : 'PIN 만들기'}</button></span></div>
       <p class="hint">할 일 화면의 순서는 기본으로 잠겨 있어 직원이 실수로 바꿀 수 없습니다. 할 일 화면 › <b>순서 바꾸기</b>에서 PIN 을 넣으면 10분 동안 손잡이(⠿)를 끌어 순서를 바꿀 수 있고, 새로고침하거나 10분이 지나면 다시 잠깁니다. 바꾼 순서는 매일 · 모든 기기에 같이 적용됩니다.</p>`}
 
+      <div class="hd sub2"><h3>완료 메모</h3></div>
+      <div class="setrow"><span>완료할 때 "어떻게 했나요" 메모</span>
+        <span class="v">${[['req', '필수'], ['opt', '선택'], ['off', '끔']].map(([v, n]) => `<button class="btn sm${doneMemoMode() === v ? ' on' : ''}" data-act="doneMemo" data-v="${v}">${n}</button>`).join(' ')}</span></div>
+      <p class="hint">${doneMemoMode() === 'req' ? '체크할 때마다 어떻게 했는지 한 줄을 꼭 적어야 완료됩니다. 테스트 기간과 신입 교육 때 권장.' : doneMemoMode() === 'opt' ? '메모 칸은 뜨지만 비워도 완료됩니다.' : '체크만 하면 바로 완료됩니다. 메모는 카드의 📝 로 따로 남길 수 있습니다.'} 완료된 카드의 📝 를 누르면 나중에도 메모를 남기거나 고칠 수 있고, 마감 리포트와 기록 탭에 함께 남습니다.</p>
+
       <div class="hd sub2"><h3>완료자 기록</h3></div>
       <div class="setrow"><span>완료할 때마다 누가 했는지 묻기</span>
         <button class="btn sm${S.settings.askWho ? ' on' : ''}" data-act="toggleAskWho">${S.settings.askWho ? '켜짐' : '꺼짐'}</button></div>
@@ -5136,13 +5143,14 @@ const App = (() => {
     const who = S.ui.whoDate === dateKey() ? S.ui.who : null;
     const ask = !!S.settings.askWho;
     if (!who && !ask) { pickWho(); return; }
+    const memoMode = doneMemoMode();   // 'req' 필수 · 'opt' 선택 · 'off' 끔
 
-    // 매번 묻기 + 증빙 없음 → 이름 한 번만 누르면 끝. 확인 버튼을 거치지 않는다.
-    if (ask && !t.ev && !t.note) {
+    // 매번 묻기 + 증빙 없음 + 메모 끔 → 이름 한 번만 누르면 끝. 확인 버튼을 거치지 않는다.
+    if (ask && !t.ev && !t.note && memoMode === 'off') {
       modal(t.title, (t.memo ? `<p class="mmemo">${esc(t.memo)}</p>` : '') + whoRow(tid, true), null);
       return;
     }
-    if (!ask && !t.ev && !t.note) { doComplete(tid, {}); return; }
+    if (!ask && !t.ev && !t.note && memoMode === 'off') { doComplete(tid, {}); return; }
 
     let b = '';
     if (t.memo) b += `<p class="mmemo">${esc(t.memo)}</p>`;
@@ -5154,7 +5162,9 @@ const App = (() => {
     if (t.ev === 'money') b += `<div class="mlabel">오늘 매출 — 포스 마감 화면을 보고 적으세요 (회계 › 매출 입력에 그대로 쌓입니다)</div>` + salesFields(salesOf(key));
     if (t.ev === 'kakao') b += `<label class="chk"><input type="checkbox" id="evKakao"> 카톡방에 사진을 보냈습니다</label>
       <p class="hint">사진은 앱이 아니라 카톡방에 남습니다. 이상이 있던 날은 아래에 한 줄 적어두면 나중에 앱에서 바로 찾을 수 있습니다.</p>`;
-    if (t.note || t.ev === 'kakao') b += `<label>메모 <span class="opt">선택</span><textarea id="evNote" rows="2" placeholder="이상 있을 때만 적으세요"></textarea></label>`;
+    if (memoMode !== 'off') b += `<label>어떻게 했나요 <span class="opt">${memoMode === 'req' ? '필수' : '선택'}</span><textarea id="evNote" rows="3" placeholder="${esc(t.notePh || '예: 수조 3번 온도 1도 내림 · 이끼 닦음 · 특이사항 없음')}"></textarea></label>
+      <p class="hint" style="margin-top:4px">한 줄이면 됩니다. 무엇을 어떻게 했는지, 평소와 다른 점이 있었는지. 체크만 하면 나중에 아무도 모릅니다.</p>`;
+    else if (t.note || t.ev === 'kakao') b += `<label>메모 <span class="opt">선택</span><textarea id="evNote" rows="2" placeholder="이상 있을 때만 적으세요"></textarea></label>`;
 
     setTimeout(() => { if (t.ev === 'money') { syncKgTotals(); syncSalesTotals(); } }, 0);
     modal(t.title, b, () => {
@@ -5178,9 +5188,23 @@ const App = (() => {
       }
       const kk = $('#evKakao');
       if (kk && !kk.checked) { alert('카톡방에 사진을 보냈는지 확인해 주세요.'); return false; }
-      const nt = $('#evNote'); if (nt && nt.value.trim()) out.note = nt.value.trim();
+      const nt = $('#evNote');
+      if (nt && memoMode === 'req' && nt.value.trim().length < 2) { alert('어떻게 했는지 한 줄 적어 주세요. (설정에서 "완료 메모"를 선택으로 바꿀 수 있습니다)'); nt.focus(); return false; }
+      if (nt && nt.value.trim()) out.note = nt.value.trim();
       doComplete(tid, out);
     }, '완료');
+    setTimeout(() => { const nt = $('#evNote'); if (nt && !document.querySelector('.whosel') && t.ev !== 'money') nt.focus(); }, 60);
+  }
+  const doneMemoMode = () => (['req', 'opt', 'off'].includes(S.settings.doneMemo) ? S.settings.doneMemo : 'req');
+  /* 완료 뒤에도 메모를 남기거나 고친다 (담당자 누구나) */
+  function taskNoteModal(tid) {
+    const key = viewKey(), rec = S.days[key].inst[tid], t = tpl(tid); if (!rec) return;
+    modal(`메모 — ${t.title}`, `<label>어떻게 했나요<textarea id="tnNote" rows="4" placeholder="예: 수조 3번 온도 1도 내림 · 이끼 닦음 · 특이사항 없음">${esc(rec.note || '')}</textarea></label>
+      <p class="hint">${rec.s === 'done' ? `${esc(rec.by || '')} ${rec.at || ''} 완료` : '아직 완료 전입니다. 메모만 먼저 남겨 둘 수 있습니다.'}</p>`, () => {
+      const v = $('#tnNote').value.trim(); if (v) rec.note = v; else delete rec.note;
+      rec.noteBy = (S.ui.whoDate === dateKey() ? S.ui.who : '') || rec.noteBy || '';
+      save(); render();
+    }, '저장');
   }
 
   function doComplete(tid, extra) {
@@ -5216,7 +5240,8 @@ const App = (() => {
       <div class="mlabel">오늘만 담당 바꾸기</div>
       <div class="roles big">${ROLE_OPTS.map((x) => `<button class="rl${roleOf(key, tid) === x ? ' on' : ''}" data-menu="role:${x}">${x}</button>`).join('')}</div>
       <button class="btn big" data-menu="title">✏️ 이름 고치기 (매일 · 두 매장 적용)</button>
-      <button class="btn big" data-menu="memo">✏️ 메모 고치기 (매일 적용)</button>
+      <button class="btn big" data-menu="note">📝 오늘 메모 남기기 · 고치기</button>
+      <button class="btn big" data-menu="memo">✏️ 설명 고치기 (매일 적용)</button>
     </div>`, null);
     $('#modal').dataset.tid = tid;
   }
@@ -5313,6 +5338,7 @@ const App = (() => {
           if (why === null) return;
           Object.assign(rec, { s: 'skip', reason: why.trim() || '사유 없음', by: S.ui.who });
         } else if (v === 'memo') { closeModal(); editMemo(tid); return; }
+        else if (v === 'note') { closeModal(); taskNoteModal(tid); return; }
         else if (v === 'title') { closeModal(); editTitle(tid); return; }
         else if (v.startsWith('role:')) { rec.role = v.slice(5); }
         else if (v.startsWith('by:')) { rec.by = v.slice(3); }
@@ -5530,6 +5556,8 @@ const App = (() => {
           break;
         }
         case 'menu': taskMenu(id); break;
+        case 'taskNote': taskNoteModal(id); break;
+        case 'doneMemo': S.settings.doneMemo = b.dataset.v; save(); render(); break;
 
         case 'addExtra': {
           modal('오늘만 할 일', `<label>내용<input id="exTitle" placeholder="예: 배달 파트너 미팅"></label>`, () => {

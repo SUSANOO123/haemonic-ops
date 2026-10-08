@@ -303,7 +303,7 @@ const Store = (() => {
       }, 300);
     };
     const ch = supa.client.channel('doc-' + k.replace(/[^a-zA-Z0-9]/g, '_'))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'key=eq.' + k }, (payload) => { const row = payload.new || {}; poke(Number(row.saved_at) || 0); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'docs_poke', filter: 'key=eq.' + k }, (payload) => { const row = payload.new || {}; poke(Number(row.saved_at) || 0); })
       .subscribe();
     list.push(() => { try { supa.client.removeChannel(ch); } catch (_) { /* 무시 */ } });
   }
@@ -312,7 +312,7 @@ const Store = (() => {
     if (!supa || !supa.client) return () => {};
     let timer = null;
     const ch = supa.client.channel('dash-' + k.replace(/[^a-zA-Z0-9]/g, '_'))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'key=eq.' + k }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'docs_poke', filter: 'key=eq.' + k }, () => {
         clearTimeout(timer);
         timer = setTimeout(async () => { try { const doc = await cloudGet(k, null); if (doc) { await localPut(k, doc); cb(doc); } } catch (_) { /* 무시 */ } }, 300);
       }).subscribe();
@@ -351,12 +351,21 @@ const Store = (() => {
      덕분에 새 기기·브라우저는 아무것도 입력하지 않아도 열자마자 서버에 연결된다(익명 세션). 설정에서 다른 값을 넣으면 그게 우선. */
   const SUPA_DEFAULT = { url: 'https://pmkxwcdoqqjeipqmukzw.supabase.co', key: 'sb_publishable_EXY0gMpArHtuYp-XkCYLeA_BFSMhfi3' };
   function supaConfig() { try { supaCfg = JSON.parse(localStorage.getItem(SUPA_KEY) || 'null'); } catch (e) { supaCfg = null; } if (!supaCfg || !supaCfg.url || !supaCfg.key) supaCfg = { ...SUPA_DEFAULT }; return supaCfg; }
+  /* 기기 등록제 (2026-10-08): 사장님이 등록한 기기만 서버가 기록을 내준다.
+     기기 열쇠(hm.devkey)는 이 기기에만 저장되고 모든 요청에 x-device-key 헤더로 실린다. 서버는 해시만 가지고 있다.
+     등록된 기기가 하나도 없는 동안(처음)은 서버가 모두 허용한다. */
+  const DEV_KEY = 'hm.devkey';
+  const devKey = () => { try { return localStorage.getItem(DEV_KEY) || ''; } catch (_) { return ''; } };
+  function mkClient(cfg) {
+    const k = devKey();
+    return window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, autoRefreshToken: true }, global: { headers: k ? { 'x-device-key': k } : {} } });
+  }
   async function connectSupa() {
     supa = null;
     const cfg = supaConfig();
     if (!cfg || !cfg.url || !cfg.key || !window.supabase || !window.supabase.createClient) return null;
     try {
-      const client = window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, autoRefreshToken: true } });
+      const client = mkClient(cfg);
       let { data } = await client.auth.getSession();
       if (!data || !data.session) {
         /* 로그인 전이면 서버가 기기용 익명 세션을 만들어 준다 (Supabase › Authentication › Allow anonymous sign-ins 켜 둠).
@@ -366,7 +375,10 @@ const Store = (() => {
         data = r.data;
       }
       const u = data.session.user || {};
-      supa = { client, url: cfg.url, email: u.email || '', anon: !!u.is_anonymous || !u.email };
+      let deviceOk = true;
+      try { const r = await client.rpc('device_ok'); if (!r.error && typeof r.data === 'boolean') deviceOk = r.data; } catch (_) { /* 서버에 아직 없으면 허용 */ }
+      supa = { client, url: cfg.url, email: u.email || '', anon: !!u.is_anonymous || !u.email, deviceOk, device: !!devKey() };
+      if (deviceOk && devKey()) client.rpc('device_touch').then(() => {}, () => {});
       client.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { supa = null; document.dispatchEvent(new Event('cloud-status')); } });
       return supa;
     } catch (e) { cloudFail(e); return null; }
@@ -410,6 +422,44 @@ const Store = (() => {
       if (error) throw error;
       return data || [];
     } catch (e) { return []; }
+  }
+
+  /* 기기 등록: 사장님 비밀번호 해시 + 기기 이름 → 서버가 열쇠를 만들어 준다. 열쇠는 이 기기에만 저장 */
+  async function deviceRegister(ownerHash, name, store) {
+    const cfg = supaConfig();
+    const client = (supa && supa.client) || mkClient(cfg);
+    const { data, error } = await client.rpc('device_register', { p_owner_hash: ownerHash, p_name: name, p_store: store || null });
+    if (error) throw new Error(error.message || String(error));
+    if (!data) throw new Error('서버가 열쇠를 돌려주지 않았습니다');
+    try { localStorage.setItem(DEV_KEY, data); } catch (_) { throw new Error('이 브라우저에 저장할 수 없습니다 (시크릿 모드?)'); }
+    return true;
+  }
+  async function deviceList() {
+    if (!supa) return [];
+    const { data, error } = await supa.client.from('devices').select('id, name, store, created_at, last_seen, active, key_hash').order('created_at');
+    if (error) throw new Error(error.message); return data || [];
+  }
+  async function deviceRevoke(id) {
+    if (!supa) return false;
+    const { error } = await supa.client.from('devices').update({ active: false }).eq('id', id);
+    if (error) throw new Error(error.message); return true;
+  }
+  async function deviceHash() {   // 이 기기 열쇠의 해시 — 목록에서 "이 기기" 표시용
+    const k = devKey(); if (!k || !(window.crypto && crypto.subtle)) return '';
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k));
+    return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  function deviceForget() { try { localStorage.removeItem(DEV_KEY); } catch (_) { /* 무시 */ } }
+  /* 등록 안 된 기기용 — 교육 자료만 (직원 이름 · 교육 진도만 오간다) */
+  async function trainingDoc(store) {
+    if (!supa) return null;
+    const { data, error } = await supa.client.rpc('training_doc', { p_store: store });
+    if (error) throw new Error(error.message); return data || null;
+  }
+  async function trainingSave(store, patch) {
+    if (!supa) return false;
+    const { error } = await supa.client.rpc('training_save', { p_store: store, p_patch: patch });
+    if (error) throw new Error(error.message); return true;
   }
 
   function supaSetConfig(url, key) {
@@ -569,7 +619,8 @@ const Store = (() => {
   return {
     init, load, save, flush, setMeta, switchTo, dumpAll, restoreAll, loadStore, saveStore, loadShared, saveShared, watchShared,
     supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates, watchDoc,
-    get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
+    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, trainingDoc, trainingSave,
+    get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), deviceOk: supa ? supa.deviceOk !== false : true, device: !!devKey(), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
     get mode() { return mode; },
     get ok() { return writable; },
     get label() {

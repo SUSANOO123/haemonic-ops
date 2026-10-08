@@ -159,6 +159,7 @@ const App = (() => {
     let h = 2166136261; data.forEach((c) => { h ^= c; h = Math.imul(h, 16777619) >>> 0; }); return 'f' + h.toString(16);   // 보안 문맥이 아닐 때(file://) 임시 해시
   }
   function ownerLoginModal() {
+    if (LIMITED) { banner('등록된 기기에서만 됩니다', '사장님 모드는 기기 등록 뒤에 쓸 수 있습니다.'); return; }
     if (!ownerPwSet()) { ownerPwModal(); return; }
     modal('사장님 모드 열기', `<label>사장님 비밀번호<input id="owP" type="password" autocomplete="current-password"></label>
       <p class="hint">맞으면 인사관리 · 운영 · 서비스 교육 · 회계 · 설정이 열리고, 할 일 순서도 바꿀 수 있습니다. <b>5분 동안 사용이 없으면 자동으로 잠깁니다.</b></p>`, () => {
@@ -172,6 +173,7 @@ const App = (() => {
     }, '열기');
   }
   function ownerPwModal() {
+    if (LIMITED) { banner('등록된 기기에서만 됩니다', '기기 등록 화면에서 비밀번호를 넣으면 등록과 함께 처리됩니다.'); return; }
     const has = ownerPwSet(), needCur = has && !ownerOn();
     modal(has ? '사장님 비밀번호 바꾸기' : '사장님 비밀번호 만들기', `
       <p class="hint" style="margin-top:0">${has ? '새 비밀번호를 넣습니다. 안산점·안양점에 같이 적용됩니다.' : '아직 비밀번호가 없습니다. 지금 만드는 비밀번호로 사장님 전용 메뉴(인사관리·운영·서비스 교육·회계·설정)가 잠기고, 안산점·안양점에 같이 적용됩니다. 직원에게는 알려주지 마세요.'}</p>
@@ -566,7 +568,16 @@ const App = (() => {
   }
 
   /* ── 저장 ────────────────────────────────────────────────── */
-  function save() { Store.save(S); }
+  /* 등록 안 된 기기 = 교육 자료 전용 모드. 매장 기록은 서버가 내주지 않고, 교육 진도만 RPC로 오간다 */
+  let LIMITED = false, limitedTimer = null;
+  function save() {
+    if (!LIMITED) { Store.save(S); return; }
+    clearTimeout(limitedTimer);
+    limitedTimer = setTimeout(() => {
+      const patch = { trainDone: S.trainDone || {}, trainQuiz: S.trainQuiz || {}, missions: S.missions || [], trainSeen: S.trainSeen || [] };
+      Store.trainingSave(Store.meta.current, patch).catch((e) => banner('교육 진도 저장 실패', e.message || String(e)));
+    }, 400);
+  }
 
   /* 접기·펼치기 상태를 화면 다시 그리기 전후로 유지한다.
      체크 한 번에 화면 전체를 다시 그리는 구조라, 이걸 기억하지 않으면
@@ -736,7 +747,8 @@ const App = (() => {
   /* ── 렌더 ────────────────────────────────────────────────── */
   /* 왼쪽 메뉴: 대카테고리(g) 아래 하위 메뉴(items). 대카테고리를 누르면 접었다 펼친다.
      g 가 null 이면 헤더 없이 바로 버튼(설정). */
-  const MENU = [
+  const MENU_LIMITED = [{ id: 'home', items: [['register', '기기 등록', '🔐'], ['training', '교육 자료', '🎓']], gs: '홈', ic: '🔐', main: 'register' }];
+  let MENU = [
     { id: 'home', items: [['guide', '테스트 안내', '📋'], ['dash', '대시보드', '🧭']], gs: '홈', ic: '🧭', main: 'dash', hot: 'guide' },   // 테스트 안내가 맨 위, 첫 화면은 대시보드   // 카테고리 없이 맨 위 단독 항목
     { id: 'work', g: '업무', gs: '업무', ic: '🗂️', items: [['rules', '공지사항 필독', '📌'], ['notices', '월간 공지', '📢'], ['today', '할 일', '✅'], ['tanks', '수조 관리표', '🐟'], ['month', '월간 근무표', '📅'], ['training', '교육 자료', '🎓'], ['report', '기록', '📊'], ['salesIn', '매출 입력', '🧾'], ['issues', '공유 게시판', '📝'], ['costs', '원가 관리', '💰'], ['health', '보건증 관리', '🩺']] },
     { id: 'people', g: '인사관리', gs: '인사', ic: '👥', lock: true, items: [['staff', '직원 명단', '🧑‍🍳'], ['contracts', '근로계약서', '📄'], ['payslip', '급여명세서', '💳'], ['hygiene', '위생교육 일정관리', '🧼']] },
@@ -832,6 +844,55 @@ const App = (() => {
       save(); render();
     }, '저장');
   }
+  /* ── 기기 등록 (등록 안 된 기기가 보는 첫 화면) ── */
+  function vRegister() {
+    const sp = Store.supa || {};
+    const revoked = sp.device && sp.deviceOk === false;
+    const st = Store.meta ? (Store.meta.stores.find((x) => x.id === Store.meta.current) || {}) : {};
+    return `<div class="hd"><div><h2>🔐 기기 등록</h2><div class="sub">해모닉 업무 체크리스트는 사장님이 등록한 기기에서만 매장 기록을 보여 줍니다.</div></div></div>
+      <div class="lockBox regBox">
+        <div class="lockIc">${revoked ? '⛔' : '🔐'}</div>
+        <p>${revoked ? '<b>이 기기의 등록이 해제되었습니다.</b><br><span class="mut">다시 쓰려면 사장님이 아래에서 다시 등록해 주세요.</span>' : '<b>이 기기는 아직 등록되지 않았습니다.</b><br><span class="mut">매장 아이패드·사장님 폰처럼 매장에서 쓰는 기기만 사장님이 직접 등록합니다. 직원 개인 폰은 등록하지 않습니다.</span>'}</p>
+        <div class="regForm">
+          <label>기기 이름<input id="rgName" placeholder="예: ${esc(st.name || '안산점')} 아이패드 · 사장님 폰" autocomplete="off"></label>
+          <label>매장<select id="rgStore">${(Store.meta ? Store.meta.stores : []).map((x) => `<option value="${x.id}"${x.id === (Store.meta || {}).current ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="">공용 (사장님 기기)</option></select></label>
+          <label>사장님 비밀번호<input id="rgPw" type="password" autocomplete="current-password"></label>
+          <button class="btn primary" data-act="deviceRegister">이 기기 등록</button>
+          <p class="hint">첫 등록이면 지금 넣는 비밀번호가 사장님 비밀번호가 됩니다 (안산점·안양점 공통). 등록은 사장님만 합니다.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px"><b>🎓 교육 자료는 등록 없이 볼 수 있습니다.</b>
+        <p class="hint" style="margin:6px 0 10px">직원은 개인 폰에서 교육 영상을 보고 "내일 적용할 것 한 줄"과 미션 체크까지 할 수 있습니다. 할 일·수조·매출 등 매장 기록은 등록된 기기에서만 보입니다.</p>
+        <button class="btn" data-act="view" data-v="training">교육 자료 열기</button></div>`;
+  }
+  async function deviceRegisterGo() {
+    const name = $('#rgName').value.trim(), pw = $('#rgPw').value, store = $('#rgStore').value;
+    if (!name) { alert('기기 이름을 적어 주세요. (예: 안산점 아이패드)'); return; }
+    if (pw.length < 4) { alert('사장님 비밀번호를 넣어 주세요 (4자 이상).'); return; }
+    const btn = document.querySelector('[data-act="deviceRegister"]'); if (btn) { btn.disabled = true; btn.textContent = '등록 중…'; }
+    try {
+      const h = await hashPw(pw);
+      await Store.deviceRegister(h, name, store || null);
+      banner('기기를 등록했습니다', '앱을 다시 불러옵니다.');
+      setTimeout(() => location.reload(), 600);
+    } catch (e) { alert('등록 실패: ' + (e.message || e)); if (btn) { btn.disabled = false; btn.textContent = '이 기기 등록'; } }
+  }
+  /* 설정 › 등록된 기기 — 사장님 모드에서 목록·해제 */
+  let devList = null, devMine = '';
+  function deviceSettings() {
+    const sp = Store.supa || {};
+    if (!sp.signedIn) return '';
+    if (devList === null) { devList = []; Promise.all([Store.deviceList().catch(() => []), Store.deviceHash()]).then(([l, h]) => { devList = l; devMine = h; if (view === 'settings') render(); }); }
+    const fmt = (t) => t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+    const stName = (id) => id ? ((Store.meta.stores.find((x) => x.id === id) || {}).name || id) : '공용';
+    const act = devList.filter((d) => d.active);
+    return `<div class="hd sub2"><h3>등록된 기기</h3></div>
+      <p class="hint" style="margin:0 0 8px">매장 기록은 여기 있는 기기에서만 보입니다. 새 기기는 그 기기에서 앱을 열어 "기기 등록"으로 추가합니다. 잃어버린 기기는 <b>끊기</b>로 바로 막을 수 있습니다.${act.length ? '' : ' <b>아직 등록된 기기가 없어 지금은 어디서나 열립니다.</b> 이 기기부터 등록하세요.'}</p>
+      ${act.length ? `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>기기</th><th>매장</th><th>등록</th><th>마지막 사용</th><th></th></tr></thead><tbody>
+        ${act.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.key_hash === devMine ? ' <span class="chip today">이 기기</span>' : ''}</td><td>${esc(stName(d.store))}</td><td class="mut">${fmt(d.created_at)}</td><td class="mut">${fmt(d.last_seen)}</td>
+          <td>${d.key_hash === devMine ? '' : `<button class="btn sm danger" data-act="deviceRevoke" data-id="${d.id}" data-name="${esc(d.name)}">끊기</button>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${!sp.device && act.length === 0 ? `<div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="register">이 기기 등록하기</button></div>` : ''}`;
+  }
   function vLocked() {
     const g = groupOf(view) || {};
     const has = ownerPwSet();
@@ -892,7 +953,7 @@ const App = (() => {
     const sb = $('#storebar'); if (sb) sb.innerHTML = `<div class="sstore top">${storeBtns}</div>`;
 
     const y = window.scrollY;
-    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
+    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, register: vRegister, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
     /* 지금 어느 매장 데이터를 보고 있는지 화면마다 박아둔다.
        직원·기록이 매장별로 따로인데 표시가 없으면 공유되는 것처럼 오해한다. */
     const h2 = $('#main .hd h2');
@@ -3546,6 +3607,7 @@ const App = (() => {
       <input type="number" class="tkIn" data-act="tankCycle" data-k="clean" data-f="late" value="${_c.clean.late}" min="1"></div>`;
 
     h += acctSettings();
+    h += deviceSettings();
     h += serverSettings();
     h += `<div class="hd sub2"><h3>앱 주소</h3></div>
       <div class="setrow"><span>이 앱의 주소 <span class="hint" style="margin:0">아이패드 · 폰 홈 화면에 이 주소로 바로가기</span></span>
@@ -5932,6 +5994,9 @@ const App = (() => {
         case 'supaLogin': supaLoginModal(); break;
         case 'supaRetry': Store.flush().then(() => location.reload()); break;
         case 'ownerLogin': ownerLoginModal(); break;
+        case 'deviceRegister': deviceRegisterGo(); break;
+        case 'deviceRevoke': { if (!confirm(`"${b.dataset.name}" 기기를 끊을까요? 그 기기에서는 매장 기록이 바로 안 보이게 됩니다.`)) return;
+          Store.deviceRevoke(id).then(() => { devList = null; banner('기기를 끊었습니다', b.dataset.name); render(); }).catch((e) => alert('실패: ' + e.message)); break; }
         case 'ownerPw': ownerPwModal(); break;
         case 'ownerLock': ownerLock(false); break;
         case 'supaLogout': { if (!confirm('서버 계정에서 로그아웃할까요? 이 기기는 자동 연결로 돌아갑니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }
@@ -6243,6 +6308,7 @@ const App = (() => {
 
   async function switchStore(id) {
     if (Store.meta && Store.meta.current === id) return;
+    if (LIMITED) { await Store.switchTo(id); location.reload(); return; }
     Store.save(S);
     S = (await Store.switchTo(id)) || freshState(id);
     staffTab = null; otherDoc = null; otherDocId = null; cOpen = null; cMode = null; cFilter = 'all';
@@ -6255,6 +6321,19 @@ const App = (() => {
 
   async function start() {
     await Store.init();
+    const spx = Store.supa || {};
+    if (spx.signedIn && spx.deviceOk === false) {
+      /* 등록 안 된 기기: 매장 기록 대신 교육 자료만. 이 기기에 남아 있던 캐시도 보여 주지 않는다 */
+      LIMITED = true; MENU = MENU_LIMITED; Store.save = () => {};
+      S = freshState();
+      try { const td = await Store.trainingDoc(Store.meta.current); if (td) { ['staff', 'trainDone', 'trainQuiz', 'missions', 'trainSeen'].forEach((k) => { if (td[k] != null) S[k] = td[k]; }); } } catch (e) { console.warn('교육 자료 불러오기 실패', e); }
+      hydrate();
+      view = 'register';
+      try { const want = new URLSearchParams(location.search).get('view'); if (want === 'training') view = 'training'; } catch (e) {}
+      document.head.insertAdjacentHTML('beforeend', '<style>' + PAPER_CSS + '</style>');
+      bind(); render();
+      return;
+    }
     S = (await Store.load()) || freshState();
     hydrate();
     loadSharedIssues();

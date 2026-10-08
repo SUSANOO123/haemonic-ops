@@ -1438,3 +1438,11 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .deadTbl tr.used td{opacity:.7}
 .tkAgo.used{background:var(--any-bg);color:var(--any)}
 .notice .crit{color:var(--crit)}
+
+/* 기기 등록 화면 */
+.regBox{text-align:left;padding:22px 18px}
+.regBox .lockIc,.regBox>p{text-align:center}
+.regForm{max-width:420px;margin:12px auto 0;display:grid;gap:8px}
+.regForm label{display:block;font-size:13px;color:var(--muted)}
+.regForm input,.regForm select{width:100%;margin-top:3px}
+.regForm .btn{margin-top:4px}

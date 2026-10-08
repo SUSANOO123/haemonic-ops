@@ -1451,3 +1451,12 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 
 .staffLockTag{font-size:12px;font-weight:700;color:var(--crit);background:var(--crit-soft);border-radius:6px;padding:4px 8px;margin-bottom:6px;text-align:center}
 #main [data-act][hidden]{display:none}
+
+/* 접수된 오류·건의 목록 (테스트 안내) */
+.fbList{margin-top:12px;border-top:1px dashed var(--rule);padding-top:10px}
+.fbListHead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13.5px;margin-bottom:6px}
+.fbRow{display:grid;grid-template-columns:22px 1fr auto;gap:6px 8px;align-items:center;width:100%;text-align:left;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:7px 10px;margin-top:5px;font:inherit;color:var(--ink);cursor:pointer}
+.fbRow.done{opacity:.6}
+.fbRow .fbTitle{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fbRow .fbMeta{grid-column:2;font-size:12px;color:var(--muted)}
+.fbRow .ipill{grid-row:1 / span 2;align-self:center}

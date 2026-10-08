@@ -1509,7 +1509,22 @@ const App = (() => {
       <div class="fbImp"><span class="chip crit">중요</span><b>건의는 혼자 판단해서 올리지 않습니다.</b> 반드시 같이 일하는 팀원들과 먼저 상의하고, 상의한 내용으로 올려 주세요. 오류 신고는 혼자 바로 올려도 됩니다.</div>
       <div class="rowbtns"><button class="btn primary sm" data-act="fbNew" data-c="앱 오류">🐛 오류 신고 쓰기</button><button class="btn sm" data-act="fbNew" data-c="앱 건의">🙋 건의 쓰기</button><button class="btn sm ghost" data-act="fbCopy">양식 복사</button></div>
       <p class="hint">제목은 한눈에 알 수 있게: "할 일 체크가 풀림", "근무표에 내 이름 없음"처럼 <b>어디 + 무엇</b>으로.</p>
+      ${fbRecent()}
     </div>`;
+  }
+  /* 접수된 오류·건의 — 쓴 글이 바로 이 자리에 남는다 (사장님 요청 2026-10-08). 두 매장 공용, 최근 것이 위 */
+  function fbRecent() {
+    const list = issuesAll().filter((x) => FB_CATS.includes(x.cat)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const open = list.filter((x) => x.status !== 'done').length;
+    if (!list.length) return `<div class="fbList"><div class="fbListHead"><b>접수된 오류·건의</b><span class="mut">아직 없음 — 올리면 여기에 바로 남습니다</span></div></div>`;
+    const row = (x) => `<button class="fbRow${x.status === 'done' ? ' done' : ''}" data-act="issueOpen" data-id="${x.id}">
+        <span class="fbCat">${x.cat === '앱 오류' ? '🐛' : '🙋'}</span>
+        <span class="fbTitle">${esc(x.title)}</span>
+        <span class="fbMeta">${esc(x.store || '')} · ${x.anon ? '익명' : esc(x.by || '')} · ${new Date(x.createdAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}${(x.replies || []).length ? ` · 💬${x.replies.length}` : ''}</span>
+        <span class="ipill${x.status === 'done' ? ' done' : ''}">${x.status === 'done' ? '처리 완료' : '접수'}</span></button>`;
+    return `<div class="fbList"><div class="fbListHead"><b>접수된 오류·건의 ${list.length}건</b><span class="mut">처리 전 ${open} · 누르면 내용과 답글</span></div>
+      ${list.slice(0, 8).map(row).join('')}
+      ${list.length > 8 ? `<button class="btn sm ghost" data-act="view" data-v="issues" style="margin-top:6px">전체 보기 (공유 게시판)</button>` : ''}</div>`;
   }
   function vRules() {
     const sid = Store.meta ? Store.meta.current : 'ansan';
@@ -2521,6 +2536,7 @@ const App = (() => {
       if (x.id) SH.issues = issuesAll().map((i2) => (i2.id === x.id ? rec : i2));
       else issuesAll().push(rec);
       saveShared(); render();
+      if (!x.id && FB_CATS.includes(rec.cat)) banner('접수됐습니다', '테스트 안내 페이지의 "접수된 오류·건의" 목록과 공유 게시판에 남았습니다.');
       const tg = $('#isTg');
       if (tg && tg.checked) {
         sendTelegram(`\u{1F4DD} [${rec.store} 게시판] ${rec.cat} — ${rec.title}${rec.body ? '\n' + rec.body : ''}\n- ${rec.anon ? '익명' : rec.by}`)

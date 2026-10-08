@@ -1424,3 +1424,5 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 /* 할 일 메모 */
 .tcNote{font-size:12.5px;color:var(--ink-2);margin-top:4px;padding:5px 8px;background:var(--surface-2);border-left:3px solid var(--accent);border-radius:0 4px 4px 0;white-space:pre-wrap}
 .tcNote.empty{color:var(--muted);border-left-color:var(--rule);background:transparent;padding:2px 0}
+
+.chip.heavy{background:var(--hall-bg);color:var(--hall);padding:1px 5px}

@@ -399,7 +399,11 @@ const App = (() => {
     if (!t) return undefined;
     /* 2인 시간대: 홀 담당이 따로 없다. 홀 업무는 관리자가 겸하고(설정의 "관리자가 홀 겸직"), 주방이 맡기로 정한 것(role2)만 주방으로.
        그래서 2인일 때 담당은 갑각류 관리자 · 주방 · 공통 셋뿐이다 — 사장님 요청 2026-09-23 (낮 2명인데 셋으로 쪼개져 보이던 문제) */
-    if (crewOf(key, t.slot) === 2) { if (t.role2) return t.role2; if (t.role === '홀') return ROLE_MGR; }
+    if (crewOf(key, t.slot) === 2) {
+      // 안양점 2인: 반반 담당표(ANYANG_TWO)가 우선 — 사장님 요청 2026-10-08
+      if (Store.meta && Store.meta.current === 'anyang' && typeof ANYANG_TWO !== 'undefined' && ANYANG_TWO[tid]) return ANYANG_TWO[tid];
+      if (t.role2) return t.role2; if (t.role === '홀') return ROLE_MGR;
+    }
     return t.role;
   }
 
@@ -1573,7 +1577,7 @@ const App = (() => {
       ${canDrag ? `<span class="dragH" data-drag="${tid}" title="끌어서 순서 바꾸기">⠿</span>` : ''}
       <button class="ck" data-act="toggle" data-id="${tid}" aria-label="${esc(t.title)} 완료"${opt.isFuture ? ' disabled' : ''}>${rec.s === 'done' ? '✓' : rec.s === 'skip' ? '–' : ''}</button>
       <button class="tcMain" data-act="cardOpen" data-id="${tid}">
-        <div class="tcTitle"><span class="chip ${rc}">${role}</span>${esc(t.title)}${t.crit ? '<span class="chip crit">중요</span>' : ''}${rep.t === 'weekly' ? `<span class="chip wk">주 ${rep.days.length}회 · ${repDays(t)}</span>` : ''}${late ? '<span class="chip late">지연</span>' : ''}${missed ? '<span class="chip missed">미완료</span>' : ''}</div>
+        <div class="tcTitle"><span class="chip ${rc}">${role}</span>${esc(t.title)}${t.crit ? '<span class="chip crit">중요</span>' : ''}${typeof HEAVY_TASKS !== 'undefined' && HEAVY_TASKS.has(tid) ? '<span class="chip heavy" title="몸을 많이 쓰는 일">💪</span>' : ''}${rep.t === 'weekly' ? `<span class="chip wk">주 ${rep.days.length}회 · ${repDays(t)}</span>` : ''}${late ? '<span class="chip late">지연</span>' : ''}${missed ? '<span class="chip missed">미완료</span>' : ''}</div>
         ${rec.s === 'done' ? `<div class="tcBy ok">${rec.by ? esc(rec.by) + ' · ' : ''}${rec.at || ''}${rec.ev != null ? ` · ${t.ev === 'deaths' || typeof rec.ev === 'object' ? esc(deathsLabel(rec.ev)) : esc(t.evLabel || '입력') + ' ' + esc(rec.ev)}` : ''}</div>` : ''}
         ${rec.s === 'skip' ? (rec.auto ? `<div class="tcBy auto">자동 완료 — ${esc(rec.reason || '')}</div>` : `<div class="tcBy warn">건너뜀 — ${esc(rec.reason || '')}</div>`) : ''}
         ${rec.note ? `<div class="tcNote">📝 ${esc(rec.note)}</div>` : (rec.s === 'done' && !rec.auto && !opt.isFuture ? `<div class="tcNote empty">📝 메모 없음</div>` : '')}

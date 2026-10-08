@@ -1446,3 +1446,5 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .regForm label{display:block;font-size:13px;color:var(--muted)}
 .regForm input,.regForm select{width:100%;margin-top:3px}
 .regForm .btn{margin-top:4px}
+
+.mustTag{display:inline-block;background:var(--crit);color:#fff;font-weight:700;font-size:12.5px;padding:3px 10px;border-radius:999px;margin-bottom:6px;letter-spacing:.02em}

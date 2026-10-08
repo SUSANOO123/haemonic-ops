@@ -787,7 +787,7 @@ const App = (() => {
     const now = dateKey();
     const cur = rounds.find((r) => r.from && r.to && r.from <= now && now <= r.to);
     return `<div class="hd">
-      <div><h2>📋 테스트 기간 안내 — ${esc(storeName())}</h2><div class="sub">3일씩 세 번, 같이 써 보고 고칩니다. 평소처럼 일하면서 앱이 거슬리는 순간만 알려 주세요.</div></div>
+      <div><div class="mustTag">📌 공지사항 필수</div><h2>📋 테스트 기간 안내 — ${esc(storeName())}</h2><div class="sub">3일씩 세 번, 같이 써 보고 고칩니다. 평소처럼 일하면서 앱이 거슬리는 순간만 알려 주세요.</div></div>
       ${ownerOn() ? `<button class="btn sm" data-act="guideEdit" style="margin-left:auto">일정 고치기</button>` : ''}
     </div>
     ${cur ? `<div class="notice pin"><b>지금은 ${cur.n} 테스트 기간입니다 (${mdShort(cur.from)}~${mdShort(cur.to)}).</b> 이번 회차에서 보는 것: ${esc(cur.focus)}</div>` : ''}

@@ -2486,9 +2486,9 @@ const App = (() => {
         <label>날짜<input type="date" id="puD" value="${esc(x.date)}"></label>
         <label>분류<select id="puC">${cats.map((c) => `<option${c === x.cat ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
       </div>
-      <label>품목<input id="puN" value="${esc(x.name || '')}" placeholder="${mode === 'crab' ? '예: 러시아 대게 활' : '예: 깻잎 10단 · 소주 2박스 · 위생장갑'}"></label>
+      <label>품목<input id="puN" value="${esc(x.name || '')}" placeholder="${mode === 'crab' ? '예: 러시아 대게 활' : '예: 파 · 깻잎 · 소주 · 위생장갑'}"></label>
       <div class="frow">
-        <label>수량 <span class="opt">선택</span><input type="number" id="puQ" min="0" step="0.1" value="${x.qty ?? ''}" inputmode="decimal"></label>
+        <label>수량 <span class="opt">선택</span><input type="number" id="puQ" min="0" step="0.1" value="${x.qty ?? ''}" inputmode="decimal" placeholder="${mode === 'crab' ? '예: 12.5' : '예: 2 (파 두 단)'}"></label>
         <label>단위<select id="puU">${PURCHASE_UNITS.map((u) => `<option${u === x.unit ? ' selected' : ''}>${u}</option>`).join('')}</select></label>
       </div>
       <label>금액 (원)<input type="number" id="puA" min="0" step="100" value="${x.amount ?? ''}" inputmode="numeric" placeholder="예: 480000"></label>

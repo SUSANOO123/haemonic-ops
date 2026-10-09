@@ -6542,7 +6542,7 @@ const App = (() => {
   /* ── 데모판 (10/14 공유회용, 2026-10-09) ─────────────────────────
      demo.js 가 window.HM_DEMO 를 켜면: 서버 없음 · 저장소 따로 · 매일 처음 열 때 가짜 두 매장 자료를 오늘 날짜 기준으로 새로 만든다.
      실제 직원·매출과 무관한 숫자만 쓴다. 사장님 비밀번호 1234. */
-  const DEMO = !!window.HM_DEMO, DEMO_VER = 1, DEMO_PW = '1234';
+  const DEMO = !!window.HM_DEMO, DEMO_VER = 2, DEMO_PW = '1234';
   function demoRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   const DEMO_STAFF = {
     ansan: [
@@ -6635,6 +6635,7 @@ const App = (() => {
       S.tanks = T;
       S.deaths = [{ id: 'dd1', date: shift(today, -1), sp: '대게', n: 2, tank: '2', note: '활력 저하 후 폐사', by: S.staff[0].name, at: shift(today, -1) + ' 16:05' }];
       S.deadUse = {};
+      deadEntries(30).forEach((e) => { if (e.date < shift(today, -1)) S.deadUse[e.key] = { at: e.date + ' 18:30', by: S.staff[0].name, how: pick(['찜 요리로 사용', '직원 식사', '폐기 — 상태 나쁨']) }; });   // 지난 폐사는 이미 처리한 것으로
       // 공지 · 미션 · 교육 진도
       const mon = today.slice(0, 7);
       S.notices = [

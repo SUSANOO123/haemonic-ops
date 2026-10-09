@@ -964,6 +964,7 @@ const App = (() => {
           <label>사장님 비밀번호<input id="rgPw" type="password" autocomplete="current-password"></label>
           <button class="btn primary" data-act="deviceRegister">이 기기 등록</button>
           <p class="hint">첫 등록이면 지금 넣는 비밀번호가 사장님 비밀번호가 됩니다 (안산점·안양점 공통). 등록은 사장님만 합니다.</p>
+          <p class="hint">어제 등록했는데 또 뜨나요? 이 브라우저가 껐다 켤 때 저장소를 지우고 있는 것입니다. 등록 뒤에 나오는 <b>이 기기 전용 주소</b>를 홈 화면에 추가해 두면 그 주소로 열 때마다 자동으로 복구됩니다.</p>
         </div>
       </div>
       <div class="card" style="margin-top:14px"><b>🎓 교육 자료는 등록 없이 볼 수 있습니다.</b>
@@ -978,9 +979,21 @@ const App = (() => {
     try {
       const h = await hashPw(pw);
       await Store.deviceRegister(h, name, store || null);
-      banner('기기를 등록했습니다', '앱을 다시 불러옵니다.');
-      setTimeout(() => location.reload(), 600);
+      deviceLinkModal(true);
     } catch (e) { alert('등록 실패: ' + (e.message || e)); if (btn) { btn.disabled = false; btn.textContent = '이 기기 등록'; } }
+  }
+  /* 이 기기 전용 주소 — 홈 화면·즐겨찾기에 두면 브라우저가 저장소를 지워도 그 주소로 열 때 자동 복구된다 */
+  function deviceLinkModal(justRegistered) {
+    const link = Store.deviceLink();
+    modal(justRegistered ? '기기를 등록했습니다' : '이 기기 전용 주소', `
+      ${justRegistered ? '<p>이 기기는 이제 매장 기록을 볼 수 있습니다.</p>' : ''}
+      <div class="notice"><b>📌 이 주소를 홈 화면(또는 즐겨찾기·시작 페이지)에 추가해 두세요.</b>
+        <p class="hint" style="margin:6px 0 8px">포스·태블릿 브라우저가 껐다 켤 때 저장소를 지우면 등록이 풀려 매일 다시 등록해야 합니다. 이 주소로 열면 그때마다 자동으로 등록된 상태로 돌아옵니다. <b>이 기기에서만</b> 쓰고 다른 사람에게 보내지 마세요.</p>
+        <input class="mono" readonly value="${esc(link)}" onfocus="this.select()" style="width:100%;font-size:12px">
+        <div class="rowbtns" style="margin-top:8px"><button class="btn" data-act="deviceLinkCopy">주소 복사</button></div></div>
+      <p class="hint">브라우저 설정에서 "종료 시 쿠키·사이트 데이터 삭제"가 켜져 있으면 끄는 게 가장 확실합니다. 시크릿(프라이빗) 창에서는 등록이 남지 않습니다.</p>`,
+      justRegistered ? () => { location.reload(); } : null, justRegistered ? '앱 열기' : undefined);
+    if (justRegistered) { const x = $('#modal [data-act="mClose"]'); if (x) x.hidden = true; }   // 등록 직후엔 '앱 열기'로만 닫는다 (새로 불러와야 기록이 보인다)
   }
   /* 설정 › 등록된 기기 — 사장님 모드에서 목록·해제 */
   let devList = null, devMine = '';
@@ -996,7 +1009,8 @@ const App = (() => {
       ${act.length ? `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>기기</th><th>매장</th><th>등록</th><th>마지막 사용</th><th></th></tr></thead><tbody>
         ${act.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.key_hash === devMine ? ' <span class="chip today">이 기기</span>' : ''}</td><td>${esc(stName(d.store))}</td><td class="mut">${fmt(d.created_at)}</td><td class="mut">${fmt(d.last_seen)}</td>
           <td>${d.key_hash === devMine ? '' : `<button class="btn sm danger" data-act="deviceRevoke" data-id="${d.id}" data-name="${esc(d.name)}">끊기</button>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
-      ${!sp.device && act.length === 0 ? `<div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="register">이 기기 등록하기</button></div>` : ''}`;
+      ${!sp.device && act.length === 0 ? `<div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="register">이 기기 등록하기</button></div>` : ''}
+      ${sp.device ? `<div class="rowbtns" style="margin-top:8px"><button class="btn sm" data-act="deviceLink">📌 이 기기 전용 주소 보기</button><span class="hint" style="margin:0">매일 등록이 풀리는 기기는 이 주소를 홈 화면에 두면 자동 복구됩니다.</span></div>` : ''}`;
   }
   function vLocked() {
     const g = groupOf(view) || {};
@@ -6189,6 +6203,9 @@ const App = (() => {
         case 'supaRetry': Store.flush().then(() => location.reload()); break;
         case 'ownerLogin': ownerLoginModal(); break;
         case 'deviceRegister': deviceRegisterGo(); break;
+        case 'deviceLink': deviceLinkModal(false); break;
+        case 'deviceLinkCopy': { const l = Store.deviceLink(); const done = () => banner('주소를 복사했습니다', '이 기기의 홈 화면·즐겨찾기에 추가하세요.');
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).then(done).catch(() => prompt('아래 주소를 복사하세요', l)); else prompt('아래 주소를 복사하세요', l); break; }
         case 'deviceRevoke': { if (!confirm(`"${b.dataset.name}" 기기를 끊을까요? 그 기기에서는 매장 기록이 바로 안 보이게 됩니다.`)) return;
           Store.deviceRevoke(id).then(() => { devList = null; banner('기기를 끊었습니다', b.dataset.name); render(); }).catch((e) => alert('실패: ' + e.message)); break; }
         case 'ownerPw': ownerPwModal(); break;

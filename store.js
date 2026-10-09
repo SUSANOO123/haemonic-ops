@@ -361,8 +361,29 @@ const Store = (() => {
   /* 기기 등록제 (2026-10-08): 사장님이 등록한 기기만 서버가 기록을 내준다.
      기기 열쇠(hm.devkey)는 이 기기에만 저장되고 모든 요청에 x-device-key 헤더로 실린다. 서버는 해시만 가지고 있다.
      등록된 기기가 하나도 없는 동안(처음)은 서버가 모두 허용한다. */
-  const DEV_KEY = 'hm.devkey';
-  const devKey = () => { try { return localStorage.getItem(DEV_KEY) || ''; } catch (_) { return ''; } };
+  const DEV_KEY = 'hm.devkey', DEV_COOKIE = 'hm_devkey', DEV_RE = /^[a-f0-9]{48}$/;
+  /* 열쇠는 세 군데(localStorage · 쿠키 400일 · IndexedDB)에 같이 두고, 하나라도 남아 있으면 되살린다.
+     포스·태블릿 브라우저가 껐다 켤 때 저장소 일부를 지워 매일 다시 등록해야 하던 문제 (사장님 요청 2026-10-09).
+     거기에 더해 "이 기기 전용 주소"(?dk=열쇠)를 홈 화면에 두면 전부 지워져도 그 주소로 열 때 자동 복구된다. */
+  const devCookie = () => { try { const m = document.cookie.match(/(?:^|;\s*)hm_devkey=([a-f0-9]{48})/); return m ? m[1] : ''; } catch (_) { return ''; } };
+  const devKey = () => { try { const k = localStorage.getItem(DEV_KEY); if (k) return k; } catch (_) { /* 무시 */ } return devCookie(); };
+  function devSave(k) {
+    if (!k) return;
+    try { localStorage.setItem(DEV_KEY, k); } catch (_) { /* 무시 */ }
+    try { document.cookie = `${DEV_COOKIE}=${k}; max-age=${400 * 86400}; path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`; } catch (_) { /* 무시 */ }
+    if (db) idbSet('__devkey', k).then(() => {}, () => {});
+  }
+  async function devRecover() {
+    try {   // 기기 전용 주소로 열었으면 열쇠를 저장하고 주소창에서는 지운다
+      const u = new URL(location.href), q = u.searchParams.get('dk');
+      if (q && DEV_RE.test(q)) { devSave(q); u.searchParams.delete('dk'); history.replaceState(null, '', u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash); }
+    } catch (_) { /* 무시 */ }
+    let k = ''; try { k = localStorage.getItem(DEV_KEY) || ''; } catch (_) { /* 무시 */ }
+    if (!k) k = devCookie();
+    if (!k && db) { try { const v = await idbGet('__devkey'); if (v && DEV_RE.test(v)) k = v; } catch (_) { /* 무시 */ } }
+    if (k) devSave(k);   // 빠진 곳을 다시 채운다
+  }
+  const deviceLink = () => { const k = devKey(); return k ? location.origin + location.pathname + '?dk=' + k : ''; };
   function mkClient(cfg) {
     const k = devKey();
     return window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, autoRefreshToken: true }, global: { headers: k ? { 'x-device-key': k } : {} } });
@@ -438,7 +459,8 @@ const Store = (() => {
     const { data, error } = await client.rpc('device_register', { p_owner_hash: ownerHash, p_name: name, p_store: store || null });
     if (error) throw new Error(error.message || String(error));
     if (!data) throw new Error('서버가 열쇠를 돌려주지 않았습니다');
-    try { localStorage.setItem(DEV_KEY, data); } catch (_) { throw new Error('이 브라우저에 저장할 수 없습니다 (시크릿 모드?)'); }
+    devSave(data);
+    if (!devKey()) throw new Error('이 브라우저에 저장할 수 없습니다 (시크릿 모드?)');
     return true;
   }
   async function deviceList() {
@@ -456,7 +478,7 @@ const Store = (() => {
     const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k));
     return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
   }
-  function deviceForget() { try { localStorage.removeItem(DEV_KEY); } catch (_) { /* 무시 */ } }
+  function deviceForget() { try { localStorage.removeItem(DEV_KEY); } catch (_) { /* 무시 */ } try { document.cookie = `${DEV_COOKIE}=; max-age=0; path=/`; } catch (_) { /* 무시 */ } if (db) idbSet('__devkey', '').then(() => {}, () => {}); }
   /* 등록 안 된 기기용 — 교육 자료만 (직원 이름 · 교육 진도만 오간다) */
   async function trainingDoc(store) {
     if (!supa) return null;
@@ -525,6 +547,7 @@ const Store = (() => {
     else if (probeLS()) { mode = 'ls'; writable = true; }
     else { mode = 'none'; writable = false; }
 
+    await devRecover();   // 기기 열쇠 복구는 서버 연결(헤더에 실림)보다 먼저
     cloud = await connectCloud();
     await connectSupa();
 
@@ -626,7 +649,7 @@ const Store = (() => {
   return {
     init, load, save, flush, setMeta, switchTo, dumpAll, restoreAll, loadStore, saveStore, loadShared, saveShared, watchShared,
     supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates, watchDoc,
-    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, trainingDoc, trainingSave,
+    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, deviceLink, trainingDoc, trainingSave,
     get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), deviceOk: supa ? supa.deviceOk !== false : true, device: !!devKey(), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
     get mode() { return mode; },
     get ok() { return writable; },

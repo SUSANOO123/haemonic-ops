@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""데모판 만들기 — 실제 앱 파일을 그대로 복사하고 demo.js 한 줄만 끼워 넣는다.
+"""데모판 만들기 — 배포: cd 데모/dist && npx vercel@latest deploy --prod --yes  (주소 https://haemonic-demo.vercel.app)
+데모판 만들기 — 실제 앱 파일을 그대로 복사하고 demo.js 한 줄만 끼워 넣는다.
 결과: 데모/dist/ (Vercel 프로젝트 haemonic-demo 로 배포). 실제 기록·서버와는 완전히 분리된다."""
 import shutil, re, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -21,5 +22,6 @@ v = re.search(r'app\.js\?v=([0-9a-z]+)', html).group(1)
 html = html.replace('<title>해모닉 업무 체크리스트</title>', '<title>해모닉 업무 체크리스트 · 데모</title>')
 html = html.replace('<script src="data.js', f'<script src="demo.js?v={v}"></script>\n<script src="data.js', 1)
 (out / 'index.html').write_text(html, encoding='utf-8')
+(out / '.vercelignore').write_text('.env*\n.vercel\n', encoding='utf-8')   # vercel link 가 만드는 토큰 파일(.env.local)이 올라가지 않게
 (out / 'vercel.json').write_text('{\n  "cleanUrls": true\n}\n', encoding='utf-8')
 print('built', out, 'v=' + v)

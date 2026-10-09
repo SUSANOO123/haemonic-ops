@@ -3,7 +3,7 @@
    'meta' 문서가 매장 목록과 현재 선택을 기억한다. */
 
 const Store = (() => {
-  const DB_NAME = 'haemonic';
+  const DB_NAME = window.HM_DEMO ? 'haemonic-demo' : 'haemonic';   // 데모판(demo.js)은 실제 기록과 섞이지 않게 저장소를 따로 쓴다
   const STORE = 'kv';
   const LSP = 'haemonic:';
 
@@ -357,7 +357,8 @@ const Store = (() => {
   /* 기본 서버 설정 — 프로젝트 주소와 publishable(공개) 키. 비밀이 아니라 앱에 넣어 둔다 (service_role 키 아님).
      덕분에 새 기기·브라우저는 아무것도 입력하지 않아도 열자마자 서버에 연결된다(익명 세션). 설정에서 다른 값을 넣으면 그게 우선. */
   const SUPA_DEFAULT = { url: 'https://pmkxwcdoqqjeipqmukzw.supabase.co', key: 'sb_publishable_EXY0gMpArHtuYp-XkCYLeA_BFSMhfi3' };
-  function supaConfig() { try { supaCfg = JSON.parse(localStorage.getItem(SUPA_KEY) || 'null'); } catch (e) { supaCfg = null; } if (!supaCfg || !supaCfg.url || !supaCfg.key) supaCfg = { ...SUPA_DEFAULT }; return supaCfg; }
+  function supaConfig() { if (window.HM_DEMO) { supaCfg = null; return null; }   // 데모판은 서버에 절대 붙지 않는다
+    try { supaCfg = JSON.parse(localStorage.getItem(SUPA_KEY) || 'null'); } catch (e) { supaCfg = null; } if (!supaCfg || !supaCfg.url || !supaCfg.key) supaCfg = { ...SUPA_DEFAULT }; return supaCfg; }
   /* 기기 등록제 (2026-10-08): 사장님이 등록한 기기만 서버가 기록을 내준다.
      기기 열쇠(hm.devkey)는 이 기기에만 저장되고 모든 요청에 x-device-key 헤더로 실린다. 서버는 해시만 가지고 있다.
      등록된 기기가 하나도 없는 동안(처음)은 서버가 모두 허용한다. */

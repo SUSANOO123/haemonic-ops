@@ -1072,7 +1072,7 @@ const App = (() => {
     const sb = $('#storebar'); if (sb) sb.innerHTML = `<div class="sstore top">${storeBtns}</div>`;
 
     const y = window.scrollY;
-    $('#main').innerHTML = viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, register: vRegister, costAll: vCostAll, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]();
+    $('#main').innerHTML = demoBar() + (viewLocked(view) ? vLocked() : ({ dash: vDash, guide: vGuide, register: vRegister, costAll: vCostAll, rules: vRules, tanks: vTanks, today: vToday, staff: vStaff, contracts: vContracts, month: vMonth, costs: vCosts, notices: vNotices, issues: vIssues, recipes: vRecipes, routines: vRoutines, report: vReport, salesIn: vSalesIn, salesStat: vSalesStat, pnl: vPnl, labor: vLabor, payslip: vPayslip, health: vHealth, hygiene: vHygiene, buyInsight: vBuyInsight, training: vTraining, settings: vSettings })[view]());
     /* 지금 어느 매장 데이터를 보고 있는지 화면마다 박아둔다.
        직원·기록이 매장별로 따로인데 표시가 없으면 공유되는 것처럼 오해한다. */
     const h2 = $('#main .hd h2');
@@ -5711,6 +5711,7 @@ const App = (() => {
       if (b.closest('#side') && (a === 'view' || a === 'storeSwitch')) sideClose();   // 메뉴를 고르면 서랍은 바로 닫힌다 (대카테고리 접기·펼치기는 열어 둔다)
 
       switch (a) {
+        case 'demoReset': demoReset(); break;
         case 'sideToggle': if (document.body.classList.contains('sideOpen')) sideClose(); else sideOpen(); break;
         case 'sideClose': sideClose(); break;
         case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;
@@ -6538,6 +6539,137 @@ const App = (() => {
     try { loadMarketCache(); } catch (e) {}   // 다른 매장 매입 단가(시세 참조)를 새 매장 기준으로 다시 읽는다
   }
 
+  /* ── 데모판 (10/14 공유회용, 2026-10-09) ─────────────────────────
+     demo.js 가 window.HM_DEMO 를 켜면: 서버 없음 · 저장소 따로 · 매일 처음 열 때 가짜 두 매장 자료를 오늘 날짜 기준으로 새로 만든다.
+     실제 직원·매출과 무관한 숫자만 쓴다. 사장님 비밀번호 1234. */
+  const DEMO = !!window.HM_DEMO, DEMO_VER = 1, DEMO_PW = '1234';
+  function demoRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const DEMO_STAFF = {
+    ansan: [
+      { id: 'd1', name: '김하늘', roles: [ROLE_MGR], pay: { type: 'month', amount: 3200000 } },
+      { id: 'd2', name: '박서준', roles: ['홀'], pay: { type: 'hour', amount: 11000 } },
+      { id: 'd3', name: '이도윤', roles: ['주방'], pay: { type: 'hour', amount: 11500 } },
+      { id: 'd4', name: '최유나', roles: ['홀'], pay: { type: 'hour', amount: 10500 } },
+      { id: 'd5', name: '정민호', roles: ['주방'], pay: { type: 'hour', amount: 11000 } },
+    ],
+    anyang: [
+      { id: 'd1', name: '한지우', roles: [ROLE_MGR, '홀'], pay: { type: 'month', amount: 3000000 } },
+      { id: 'd2', name: '오세린', roles: ['주방'], pay: { type: 'hour', amount: 11000 } },
+      { id: 'd3', name: '윤태오', roles: ['홀', '주방'], pay: { type: 'hour', amount: 10500 } },
+    ],
+  };
+  const DEMO_NOTES = ['특이사항 없음', '정상 완료', '확인 완료 · 이상 없음', '사진 찍어 단톡방 공유', '부족분 바로 채움', '평소보다 오래 걸림 — 손님 몰림', '같이 한 사람과 나눠서 끝냄', '처음 해 봐서 매니저에게 물어보고 함'];
+  const DEMO_FOOD = [['식자재', '양파·대파·마늘', 38000], ['식자재', '쌀 20kg', 62000], ['식자재', '버터·치즈', 45000], ['수산물', '전복·새우', 120000], ['주류·음료', '소주·맥주', 180000], ['소모품', '비닐장갑·랩·호일', 42000], ['식자재', '소스류', 56000]];
+  async function demoSeed() {
+    const today = dateKey(), now = nowMin();
+    const docs = {};
+    for (const st of ['ansan', 'anyang']) {
+      const R = demoRng(st === 'ansan' ? 17 : 29);
+      const pick = (a) => a[Math.floor(R() * a.length)];
+      S = freshState(st);
+      S.created = shift(today, -40);
+      S.staff = DEMO_STAFF[st].map((x) => ({ ...x, roles: x.roles.slice(), active: true }));
+      S.settings = { ...S.settings, askWho: true, askWhoV2: 1, reportAt: '21:50', reportAtV2: 1, doneMemo: 'req', staffLock: true, crew: st === 'ansan' ? 3 : 2 };
+      S.routineVer = ROUTINE_VER;
+      S.demo = { ver: DEMO_VER, day: today };
+      // 근무 편성 — 지난 30일 · 앞으로 14일
+      for (let i = -30; i <= 14; i++) {
+        const k = shift(today, i), wd = new Date(k + 'T00:00:00').getDay();
+        const pool = S.staff.slice(), mgr = pool.shift(), rest = pool.sort(() => R() - 0.5), busy = wd === 5 || wd === 6;
+        const am = st === 'ansan' ? [mgr, rest[0], rest[1]] : [mgr, rest[0]];
+        const pm = st === 'ansan' ? [mgr, rest[busy ? 0 : 2], rest[3]].concat(busy ? [rest[1]] : []) : [mgr, rest[busy ? 1 : 0]].concat(busy ? [rest[0]] : []);
+        applyShiftDay(k, [...new Set(am.filter(Boolean).map((x) => x.name))], [...new Set(pm.filter(Boolean).map((x) => x.name))]);
+      }
+      // 할 일 기록 — 지난 14일 + 오늘(지금 시각 이전 것만)
+      const totalBy = {};
+      for (let i = 14; i >= 0; i--) {
+        const k = shift(today, -i), day = ensureDay(k);
+        const crew = (S.roster[k] || []).map((e) => S.staff.find((x) => x.id === e.staffId)).filter(Boolean);
+        const pDay = i === 0 ? 0.93 : 0.8 + R() * 0.18;
+        Object.keys(day.inst).forEach((tid) => {
+          const rec = day.inst[tid], t = tpl(tid); if (!t || rec.s !== 'todo' || t.rest) return;
+          const m = minutesOf(t.sort); if (m == null) return;
+          if (i === 0 && m > now - 5) return;
+          if (R() > (t.crit ? Math.min(0.98, pDay + 0.08) : pDay)) return;
+          const late = R() < 0.12 ? 35 + Math.floor(R() * 40) : Math.floor(R() * 22) - 4;
+          const at = Math.max(0, Math.min(23 * 60 + 50, m + late));
+          const who = pick(crew.length ? crew : S.staff);
+          rec.s = 'done'; rec.by = who.name; rec.at = `${pad(Math.floor(at / 60))}:${pad(at % 60)}`;
+          if (R() < 0.85) rec.note = pick(DEMO_NOTES);
+          if (t.ev === 'deaths') rec.ev = { 대게: R() < 0.1 ? 1 : 0, 킹크랩: R() < 0.04 ? 1 : 0, 랍스터: 0 };
+          totalBy[k] = true;
+        });
+      }
+      // 매출 — 60일
+      S.sales = {};
+      const base = st === 'ansan' ? 2600000 : 1700000;
+      for (let i = 60; i >= 1; i--) {
+        const k = shift(today, -i), wd = new Date(k + 'T00:00:00').getDay();
+        const mul = wd === 5 ? 1.45 : wd === 6 ? 1.6 : wd === 0 ? 1.25 : wd === 1 ? 0.75 : 1;
+        const tot = Math.round(base * mul * (0.82 + R() * 0.36) / 1000) * 1000;
+        const deliv = Math.round(tot * (0.18 + R() * 0.1) / 100) * 100, take = Math.round(tot * (0.04 + R() * 0.04) / 100) * 100, store = tot - deliv - take;
+        const oS = Math.round(store / 98000), oD = Math.round(deliv / 72000);
+        const crab = Math.round(tot / 95000 * 10) / 10, king = Math.round(tot / 210000 * 10) / 10, lob = Math.round(R() * 3 * 10) / 10;
+        S.sales[k] = { orders: oS + oD, ordersS: oS, ordersD: oD, store, deliv, take, total: tot, liquor: Math.round(store * 0.16 / 100) * 100, crab, king, lob, by: '데모', at: k + ' 21:40', src: 'demo' };
+        const d = S.days[k]; const mt = S.templates.find((x) => x.ev === 'money'); if (d && mt && d.inst[mt.id] && d.inst[mt.id].s === 'done') d.inst[mt.id].ev = tot;
+      }
+      // 매입 — 갑각류(2~3일마다) + 식자재
+      S.purchases = [];
+      for (let i = 60; i >= 0; i--) {
+        const k = shift(today, -i);
+        if (i % (st === 'ansan' ? 2 : 3) === 0) {
+          const kg = Math.round((st === 'ansan' ? 19 : 12) * (0.8 + R() * 0.4) * 10) / 10, unit = 68000 + Math.round(R() * 9000 + (60 - i) * 60);
+          S.purchases.push({ id: newId('p'), date: k, cat: '대게', name: '대게(러시아)', qty: kg, unit: 'kg', amount: Math.round(kg * unit / 100) * 100, vendor: '데모수산', memo: '', by: '데모', createdAt: Date.now(), src: 'demo' });
+          if (R() < 0.6) { const kk = Math.round((st === 'ansan' ? 7 : 4.5) * (0.8 + R() * 0.4) * 10) / 10, ku = 118000 + Math.round(R() * 14000); S.purchases.push({ id: newId('p'), date: k, cat: '킹크랩', name: '킹크랩', qty: kk, unit: 'kg', amount: Math.round(kk * ku / 100) * 100, vendor: '데모수산', memo: '', by: '데모', createdAt: Date.now(), src: 'demo' }); }
+        }
+        if (i % 2 === 1) { const f = pick(DEMO_FOOD); S.purchases.push({ id: newId('p'), date: k, cat: f[0], name: f[1], qty: null, unit: 'kg', amount: Math.round(f[2] * 1.6 * (0.85 + R() * 0.3) / 100) * 100, vendor: '데모상회', memo: '', by: pick(S.staff).name, createdAt: Date.now(), src: 'demo' }); }
+      }
+      // 수조
+      const T = TANK_DEFAULT(); T.count = 4; T.items = []; T.care = []; T.log = [];
+      for (let n = 1; n <= 4; n++) {
+        const w = shift(today, -(2 + n * 2)), c = shift(today, -(8 + n * 7));
+        T.items.push({ n, water: { date: w, by: S.staff[0].name }, clean: { date: c, by: S.staff[0].name } });
+        T.care.push({ id: 'cw' + n, date: w, n, kind: 'water', by: S.staff[0].name }, { id: 'cc' + n, date: c, n, kind: 'clean', by: S.staff[0].name });
+        T.log.push({ id: 'l' + n, date: shift(today, -n), n, pos: 'top', species: n % 2 ? '대게' : '킹크랩', qty: 10 + n * 3, kg: Math.round((12 + n * 4) * 10) / 10, dead: 0, by: S.staff[0].name });
+      }
+      S.tanks = T;
+      S.deaths = [{ id: 'dd1', date: shift(today, -1), sp: '대게', n: 2, tank: '2', note: '활력 저하 후 폐사', by: S.staff[0].name, at: shift(today, -1) + ' 16:05' }];
+      S.deadUse = {};
+      // 공지 · 미션 · 교육 진도
+      const mon = today.slice(0, 7);
+      S.notices = [
+        { id: 'n1', month: mon, title: '이번 달 목표 — 할 일 완료율 95%', body: '중요 표시 업무는 시간대 시작할 때 먼저 끝냅니다.', pin: true, by: S.staff[0].name, createdAt: Date.now() - 864e5 * 6 },
+        { id: 'n2', month: mon, title: '주말 단체 예약 많음 — 룸 세팅 30분 일찍', body: '금·토 17:00 전까지 룸 세팅 완료', pin: false, by: S.staff[0].name, createdAt: Date.now() - 864e5 * 2 },
+      ];
+      seedTraining(true);
+      const urls = (S.training || []).map((x) => x.url).filter(Boolean);
+      S.trainDone = {}; S.staff.forEach((x, idx) => { S.trainDone[x.name] = {}; urls.slice(0, Math.max(2, 9 - idx * 2)).forEach((u, j) => { S.trainDone[x.name][u] = shift(today, -(j + 1)); }); });
+      S.missions = S.staff.slice(1, 4).map((x, j) => ({ id: 'ms' + j, who: x.name, text: ['손님 오시면 3초 안에 인사하기', '퇴근 전 작업대 물기까지 닦기', '대게 손질 순서 외워서 혼자 해 보기'][j] || '오늘 배운 것 적용하기', cat: '서비스', month: mon, createdAt: Date.now() - 864e5 * (j + 1), status: ['done', 'claimed', 'open'][j] || 'open', doneAt: j === 0 ? Date.now() - 864e5 : undefined }));
+      docs[st] = S;
+    }
+    for (const st of ['ansan', 'anyang']) await Store.saveStore(st, docs[st]);
+    // 두 매장 공용 — 사장님 비밀번호 · 게시판
+    const h = await hashPw(DEMO_PW), t0 = Date.now();
+    SH = { owner: { hash: h, at: t0 }, issues: [
+      { id: 'i1', cat: '앱 오류', title: '할 일 체크가 가끔 풀림', body: '📍 어느 화면 : 업무 › 할 일 › 미들\n👆 무엇을 눌렀나 : 갑각류 중간체크 완료\n❗ 어떻게 됐나 : 체크됐다가 2초 뒤 풀림\n✅ 이렇게 되면 좋겠다 : 한 번 누르면 그대로\n📱 기기 : 매장 아이패드\n🔁 다시 해도 같은가 : 가끔', status: 'done', replies: [{ text: '다른 기기 저장이 올 때 화면이 초기화되던 문제 — 고쳤습니다', by: '사장님', at: t0 - 864e5, fix: true }], by: '박서준', anon: false, createdAt: t0 - 864e5 * 2, store: '안산점', updatedAt: t0 - 864e5 },
+      { id: 'i2', cat: '앱 건의', title: '근무표에 내 이름 눌러서 넣기', body: '📍 어느 화면 : 인사관리 › 월간 근무표\n❗ 어떻게 됐나 : 이름을 매번 타자로 침\n✅ 이렇게 되면 좋겠다 : 직원 명단에서 눌러서 넣기', status: 'done', replies: [{ text: '직원 칩으로 바꿨습니다', by: '사장님', at: t0 - 864e5 * 3, fix: true }], by: '', anon: true, team: true, createdAt: t0 - 864e5 * 4, store: '안양점', updatedAt: t0 - 864e5 * 3 },
+      { id: 'i3', cat: '앱 오류', title: '폐사 기록 후 3일 표시가 안 보임', body: '📍 어느 화면 : 업무 › 수조 관리표\n❗ 어떻게 됐나 : 폐사 적었는데 사용 기한 표시 없음\n📱 기기 : 매장 포스', status: 'open', replies: [], by: '오세린', anon: false, createdAt: t0 - 3600e3 * 5, store: '안양점', updatedAt: t0 - 3600e3 * 5 },
+      { id: 'i4', cat: '시설·장비', title: '2번 수조 산소발생기 소리 큼', body: '어제부터 덜덜거림. 업체 점검 필요해 보임', status: 'open', replies: [{ text: '내일 오전 업체 방문 예정', by: '김하늘', at: t0 - 3600e3 * 2 }], by: '이도윤', anon: false, createdAt: t0 - 864e5, store: '안산점', updatedAt: t0 - 3600e3 * 2 },
+    ] };
+    await Store.saveShared('issues', SH);
+    await Store.setMeta({ ...(Store.meta || {}), current: 'ansan', stores: [{ id: 'ansan', name: '안산점' }, { id: 'anyang', name: '안양점' }] });
+    return docs.ansan;
+  }
+  function demoBar() {
+    if (!DEMO) return '';
+    return `<div class="demoBar"><b>🧪 데모판</b><span>이름·매출은 전부 가짜입니다. 마음껏 눌러 보세요.</span><span>사장님 비밀번호 <code>${DEMO_PW}</code></span><button class="btn sm ghost" data-act="demoReset">처음 상태로</button></div>`;
+  }
+  async function demoReset() {
+    try { await new Promise((res) => { const r = indexedDB.deleteDatabase('haemonic-demo'); r.onsuccess = r.onerror = r.onblocked = () => res(); }); } catch (e) { /* 무시 */ }
+    try { localStorage.clear(); sessionStorage.clear(); } catch (e) { /* 무시 */ }
+    location.reload();
+  }
+
   async function start() {
     await Store.init();
     const spx = Store.supa || {};
@@ -6554,6 +6686,7 @@ const App = (() => {
       return;
     }
     S = (await Store.load()) || freshState();
+    if (DEMO && !(S.demo && S.demo.ver === DEMO_VER && S.demo.day === dateKey())) { S = await demoSeed(); await Store.switchTo('ansan'); S = (await Store.load()) || S; }   // 데모판: 매일 처음 열면 오늘 기준으로 새로 채운다
     hydrate();
     loadSharedIssues();
     try { loadMarketCache(); } catch (e) {}   // 매입 기록 없는 매장이 다른 매장 단가를 시세 참고로 쓰기 위해

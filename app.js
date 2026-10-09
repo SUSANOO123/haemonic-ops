@@ -1048,7 +1048,7 @@ const App = (() => {
     else if (view !== lastNavView && g && !navOpen.has(g.id)) { navOpen.add(g.id); saveNavOpen(); }
     lastNavView = view;
 
-    $('#side').innerHTML = `<div class="slogo">🦀 해모닉<small>업무 체크리스트</small></div>
+    $('#side').innerHTML = `<div class="slogo">🦀 해모닉<small>업무 체크리스트</small><button class="sideX" data-act="sideClose" aria-label="메뉴 닫기">✕</button></div>
       <div class="sstore">${storeBtns}</div>
       <nav class="smenu">${sideMenu()}</nav>
       <div class="sfoot"><div class="sfl">지금 사용 중</div>${whoBtn}${ownerOn() ? '<button class="btn sm ghost ownerBtn" data-act="ownerLock">👑 사장님 모드 · 잠그기</button>' : ''}</div>`;
@@ -5634,7 +5634,16 @@ const App = (() => {
   }
 
   /* ── 이벤트 ──────────────────────────────────────────────── */
+  /* 왼쪽 메뉴 서랍 (PC·포스 1024×768) — 평소엔 숨기고 ☰ 로 연다. 고르면 닫히고, 15초 가만히 두면 저절로 닫힌다 (사장님 요청 2026-10-09) */
+  let sideTimer = null;
+  const SIDE_IDLE_MS = 15 * 1000;
+  function sideArm() { clearTimeout(sideTimer); sideTimer = setTimeout(sideClose, SIDE_IDLE_MS); }
+  function sideOpen() { document.body.classList.add('sideOpen'); sideArm(); }
+  function sideClose() { clearTimeout(sideTimer); sideTimer = null; document.body.classList.remove('sideOpen'); }
+
   function bind() {
+    $('#side').addEventListener('pointerdown', () => { if (document.body.classList.contains('sideOpen')) sideArm(); }, { passive: true });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('sideOpen')) sideClose(); });
     document.addEventListener('change', (e) => {
       const el = e.target.closest('[data-act="tankCycle"]'); if (!el) return;
       const v = Math.max(1, Number(el.value) || 1), T = tanksOf();
@@ -5685,8 +5694,11 @@ const App = (() => {
       const a = b.dataset.act, id = b.dataset.id;
       const key = view === 'month' ? mdateKey() : viewKey();   // 편성 동작은 근무표에서 선택한 날짜 기준
       if (STAFF_BLOCK.has(a) && staffLocked()) { blockedBanner(); return; }
+      if (b.closest('#side') && (a === 'view' || a === 'storeSwitch')) sideClose();   // 메뉴를 고르면 서랍은 바로 닫힌다 (대카테고리 접기·펼치기는 열어 둔다)
 
       switch (a) {
+        case 'sideToggle': if (document.body.classList.contains('sideOpen')) sideClose(); else sideOpen(); break;
+        case 'sideClose': sideClose(); break;
         case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;
         case 'viewUnlock': orderUnlockModal('이 카테고리를 열려면 사장님 PIN 을 넣으세요.'); break;
         case 'guideEdit': guideEditModal(); break;

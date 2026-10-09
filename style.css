@@ -355,13 +355,24 @@ ol.std li{margin-bottom:8px}
 .cwrap{flex:1;min-width:0}
 #side{display:none}
 
+/* 메뉴 서랍 — PC·포스(1024×768)에서는 평소 숨기고 ☰ 로 연다. 본문이 화면을 다 쓴다 (2026-10-09) */
+.menuBtn{display:none;background:var(--surface);border:1px solid var(--rule);border-radius:9px;width:40px;height:38px;font-size:19px;cursor:pointer;align-items:center;justify-content:center;flex:none;color:var(--ink)}
+.menuBtn:hover{background:var(--surface-2)}
+#sideScrim{display:none;position:fixed;inset:0;background:rgba(12,33,31,.38);z-index:59}
+.sideX{display:none}
 @media (min-width:960px){
+  .menuBtn{display:flex}
+  body.sideOpen #sideScrim{display:block}
   #side{
-    display:flex;flex-direction:column;width:216px;flex:none;
+    display:flex;flex-direction:column;width:236px;flex:none;
     background:#0C211F;color:#B9CCC8;
-    position:sticky;top:0;height:100vh;padding:18px 12px;overflow-y:auto
+    position:fixed;left:0;top:0;height:100vh;padding:14px 12px;overflow-y:auto;z-index:60;
+    transform:translateX(-100%);transition:transform .18s ease;box-shadow:0 0 0 rgba(0,0,0,0)
   }
-  .slogo{color:#fff;font-weight:700;font-size:18px;padding:6px 10px 20px;letter-spacing:-.01em}
+  body.sideOpen #side{transform:none;box-shadow:6px 0 24px rgba(0,0,0,.25)}
+  .slogo{color:#fff;font-weight:700;font-size:18px;padding:6px 10px 16px;letter-spacing:-.01em;position:relative}
+  .sideX{display:block;position:absolute;right:4px;top:2px;background:rgba(255,255,255,.08);color:#DCE7E5;border:0;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer}
+  .sideX:hover{background:rgba(255,255,255,.16);color:#fff}
   .slogo small{display:block;font-size:11px;font-weight:400;color:#6E8884;margin-top:2px}
   .smenu{display:flex;flex-direction:column}
   .shome .sitem{font-weight:700;color:#fff;background:rgba(255,255,255,.07);margin-bottom:6px}
@@ -393,9 +404,19 @@ ol.std li{margin-bottom:8px}
   .sfl{font-size:11px;color:#5D7672;margin-bottom:7px}
   .sfoot .whoBtn{width:100%;background:rgba(255,255,255,.09);color:#fff}
 
-  #mhead .hrow,#mhead #nav{display:none}          /* 모바일 상단 탭 숨김 */
-  main{max-width:1180px;padding:26px 28px 96px}
+  /* 상단: 한 줄 머리(☰ · 상호 · 매장 · 이름) + 탭 두 줄. 1024×768 에 맞춰 촘촘하게 */
+  .hrow{max-width:none;padding:8px 18px 0;gap:10px}
+  #nav{max-width:none}
+  .navg{padding:4px 14px 0}
+  .navg .tab{padding:7px 12px;font-size:14px;min-height:38px}
+  .navs{padding:3px 12px}
+  .tab.s{min-height:36px;padding:6px 11px;font-size:13.5px}
+  main{max-width:none;padding:14px 20px 72px}
+  .hd{margin:2px 0 10px}
+  .hd h2{font-size:21px}
+  .slotTabs{margin:10px 0 10px}
 }
+@media (min-width:1400px){main{max-width:1240px}}
 
 /* ═══ 월간 근무표 (MORAK 구조) ═══ */
 .mnav{margin-left:auto;display:flex;align-items:center;gap:8px}
@@ -569,7 +590,7 @@ button.ov{cursor:pointer}button.ov:hover{border-color:var(--crit)}
 .sstore.top .stb{color:var(--muted);padding:5px 11px;font-size:12.5px;min-height:32px}
 .sstore.top .stb.on{background:var(--accent);color:#fff}
 #storebar{margin-left:auto}
-@media (min-width:960px){#storebar{display:none}}
+/* 매장 전환은 PC에서도 머리줄에 둔다 — 서랍이 평소 닫혀 있으므로 */
 #who{margin-left:10px}
 
 /* ═══ 원가 관리 ═══ */

@@ -6712,9 +6712,10 @@ const App = (() => {
     checkAlarms();
     checkReport();
 
-    let lastKey = dateKey(), lastSig = null;
+    let lastKey = dateKey(), lastSig = null, tickN = 0;
     tickTimer = setInterval(() => {
       const k = dateKey();
+      if (++tickN % 40 === 0) Store.deviceTouch();   // 20분마다 — 켜 둔 포스가 매장 인터넷 주소를 서버에 남긴다
       if (k !== lastKey) { lastKey = k; S.ui.date = k; S.ui.filter = 'all'; S.ui.slot = null; backfill(); save(); render(); }   // 자정 롤오버
       checkAlarms();
       // 지연 표시가 실제로 바뀔 때만 다시 그린다.

@@ -481,6 +481,8 @@ const Store = (() => {
     const { error } = await supa.client.from('store_nets').update({ active: false }).eq('ip', ip);
     if (error) throw new Error(error.message); return true;
   }
+  /* 낮에도 주기적으로 '살아 있음'을 알린다 — 등록된 포스가 켜져 있는 동안 매장 인터넷 주소가 서버에 기억되도록 (재시작 없이도) */
+  function deviceTouch() { if (!supa || supa.deviceOk === false) return; supa.client.rpc(devKey() ? 'device_touch' : 'net_touch').then(() => {}, () => {}); }
   async function myIp() { if (!supa) return ''; const { data } = await supa.client.rpc('req_ip'); return data || ''; }
   async function deviceRevoke(id) {
     if (!supa) return false;
@@ -663,7 +665,7 @@ const Store = (() => {
   return {
     init, load, save, flush, setMeta, switchTo, dumpAll, restoreAll, loadStore, saveStore, loadShared, saveShared, watchShared,
     supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates, watchDoc,
-    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, deviceLink, netList, netRevoke, myIp, trainingDoc, trainingSave,
+    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, deviceLink, netList, netRevoke, myIp, deviceTouch, trainingDoc, trainingSave,
     get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), deviceOk: supa ? supa.deviceOk !== false : true, device: !!devKey(), viaNet: !!(supa && supa.viaNet), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
     get mode() { return mode; },
     get ok() { return writable; },

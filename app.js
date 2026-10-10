@@ -954,6 +954,18 @@ const App = (() => {
   function vRegister() {
     const sp = Store.supa || {};
     const revoked = sp.device && sp.deviceOk === false;
+    if (!LIMITED && sp.signedIn && sp.deviceOk !== false) {   // 이미 열리는 기기에서 ?view=register 로 들어온 경우 — "등록 안 됨"처럼 보이지 않게
+      return `<div class="hd"><div><h2>🔐 기기 등록</h2><div class="sub">이 기기는 매장 기록을 볼 수 있습니다.</div></div></div>
+        <div class="lockBox regBox"><div class="lockIc">✅</div>
+          <p><b>${sp.device ? '이 기기는 등록되어 있습니다.' : '이 기기는 매장 인터넷으로 열려 있습니다.'}</b><br><span class="mut">${sp.device ? '등록이 풀리는 기기라면 아래 전용 주소를 홈 화면에 두세요.' : '매장 밖에서도 쓰려면 사장님이 아래에서 이 기기를 등록할 수 있습니다.'}</span></p>
+          <div class="rowbtns"><button class="btn primary" data-act="view" data-v="dash">대시보드로</button>${sp.device ? '<button class="btn" data-act="deviceLink">📌 이 기기 전용 주소</button>' : ''}</div>
+          ${sp.device ? '' : `<details style="margin-top:14px"><summary class="hint">이 기기를 따로 등록하기 (사장님)</summary><div class="regForm" style="margin-top:8px">
+            <label>기기 이름<input id="rgName" placeholder="예: 사장님 폰" autocomplete="off"></label>
+            <label>매장<select id="rgStore">${(Store.meta ? Store.meta.stores : []).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}<option value="" selected>공용 (사장님 기기)</option></select></label>
+            <label>사장님 비밀번호<input id="rgPw" type="password" autocomplete="current-password"></label>
+            <button class="btn primary" data-act="deviceRegister">이 기기 등록</button></div></details>`}
+        </div>`;
+    }
     const st = Store.meta ? (Store.meta.stores.find((x) => x.id === Store.meta.current) || {}) : {};
     return `<div class="hd"><div><h2>🔐 기기 등록</h2><div class="sub">해모닉 업무 체크리스트는 사장님이 등록한 기기에서만 매장 기록을 보여 줍니다.</div></div></div>
       <div class="lockBox regBox">
@@ -993,7 +1005,7 @@ const App = (() => {
         <input class="mono" readonly value="${esc(link)}" onfocus="this.select()" style="width:100%;font-size:12px">
         <div class="rowbtns" style="margin-top:8px"><button class="btn" data-act="deviceLinkCopy">주소 복사</button></div></div>
       <p class="hint">브라우저 설정에서 "종료 시 쿠키·사이트 데이터 삭제"가 켜져 있으면 끄는 게 가장 확실합니다. 시크릿(프라이빗) 창에서는 등록이 남지 않습니다.</p>`,
-      justRegistered ? () => { location.reload(); } : null, justRegistered ? '앱 열기' : undefined);
+      justRegistered ? () => { location.href = location.pathname; } : null, justRegistered ? '앱 열기' : undefined);   // ?view=register 를 떼고 첫 화면으로
     if (justRegistered) { const x = $('#modal [data-act="mClose"]'); if (x) x.hidden = true; }   // 등록 직후엔 '앱 열기'로만 닫는다 (새로 불러와야 기록이 보인다)
   }
   /* 설정 › 등록된 기기 — 사장님 모드에서 목록·해제 */

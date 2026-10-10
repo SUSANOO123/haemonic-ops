@@ -3835,11 +3835,12 @@ const App = (() => {
     ['ordersS', '매장 주문', '건', 1], ['ordersD', '배달 주문', '건', 1], ['deliv', '배달 매출', '원', 100], ['take', '포장 매출', '원', 100],   // 2026-10-07 매장·배달 주문 건 분리 — 총주문은 자동 합
     ['total', '총매출', '원', 100], ['crab', '대게', 'kg', 0.1], ['king', '킹크랩', 'kg', 0.1], ['lob', '랍스터', 'kg', 0.1], ['liquor', '그중 주류 매출', '원', 100],
     ['crabS', '대게 매장', 'kg', 0.1], ['crabD', '대게 배달', 'kg', 0.1], ['kingS', '킹크랩 매장', 'kg', 0.1], ['kingD', '킹크랩 배달', 'kg', 0.1], ['lobS', '랍스터 매장', 'kg', 0.1], ['lobD', '랍스터 배달', 'kg', 0.1],
+    ['crabP', '대게 포장', 'kg', 0.1], ['kingP', '킹크랩 포장', 'kg', 0.1], ['lobP', '랍스터 포장', 'kg', 0.1],   // 2026-10-10 안산점 건의: 포장 매출 칸은 있는데 포장 kg 칸이 없음
   ];
   /* kg 는 품종별 합계(crab·king·lob)가 기준이고, 매장(S)·배달(D)로 나눠 넣으면 합계는 자동으로 채워진다 — 사장님 요청 2026-10-02 */
   const KG_SP = [['crab', '대게'], ['king', '킹크랩'], ['lob', '랍스터']];
   const kgCh = (r, ch) => KG_SP.reduce((acc, [k]) => acc + (Number((r || {})[k + ch]) || 0), 0);   // ch: 'S' 매장 · 'D' 배달
-  const hasKgSplit = (r) => !!r && KG_SP.some(([k]) => r[k + 'S'] != null || r[k + 'D'] != null);
+  const hasKgSplit = (r) => !!r && KG_SP.some(([k]) => r[k + 'S'] != null || r[k + 'D'] != null || r[k + 'P'] != null);
   const salesTotal = (r) => { if (!r) return 0; if (r.total != null && !isNaN(r.total)) return Number(r.total) || 0; return (Number(r.store) || 0) + (Number(r.deliv) || 0) + (Number(r.take) || 0); };
   const salesKg = (r) => (Number(r.crab) || 0) + (Number(r.king) || 0) + (Number(r.lob) || 0);
   const salesOf = (k) => (S.sales || {})[k] || null;
@@ -3870,24 +3871,24 @@ const App = (() => {
       <div class="mlabel">매출 — 매장 · 배달 · 포장을 넣으면 총매출은 자동</div>
       <div class="frow3">${inp(SALES_F[1])}${inp(SALES_F[4])}${inp(SALES_F[5])}</div>
       <div class="frow">${auto(SALES_F[6])}${inp(SALES_F[10])}</div>
-      <div class="mlabel">판매 kg — 매장 · 배달 따로 넣으면 합계는 자동</div>
-      <table class="kgTbl"><thead><tr><th></th><th>매장 kg</th><th>배달 kg</th><th>합계 kg</th></tr></thead><tbody>
-        ${KG_SP.map(([k, n]) => `<tr><th>${n}</th><td>${kgIn(k + 'S')}</td><td>${kgIn(k + 'D')}</td><td>${kgIn(k, '자동')}</td></tr>`).join('')}
-        <tr class="sum"><th>합계</th><td id="kgSumS">–</td><td id="kgSumD">–</td><td id="kgSumT">–</td></tr>
+      <div class="mlabel">판매 kg — 매장 · 배달 · 포장 따로 넣으면 합계는 자동</div>
+      <table class="kgTbl"><thead><tr><th></th><th>매장 kg</th><th>배달 kg</th><th>포장 kg</th><th>합계 kg</th></tr></thead><tbody>
+        ${KG_SP.map(([k, n]) => `<tr><th>${n}</th><td>${kgIn(k + 'S')}</td><td>${kgIn(k + 'D')}</td><td>${kgIn(k + 'P')}</td><td>${kgIn(k, '자동')}</td></tr>`).join('')}
+        <tr class="sum"><th>합계</th><td id="kgSumS">–</td><td id="kgSumD">–</td><td id="kgSumP">–</td><td id="kgSumT">–</td></tr>
       </tbody></table>
       <p class="hint">빈칸은 0이 아니라 "미입력"으로 남습니다. 총주문·총매출은 나눠 넣은 값의 합으로 자동 계산되고, 나눠 넣지 않았을 때만 직접 적습니다. 주류 매출은 매장 매출 안에 포함된 금액을 따로 적는 칸입니다(총매출에 더해지지 않음). 합계 kg 만 알면 합계 칸에만 넣어도 됩니다.</p>`;
   }
   function syncKgTotals() {
     const g = (k) => { const el = document.querySelector(`.sfIn[data-k="${k}"]`); if (!el) return null; const v = el.value.trim(); return v === '' ? null : Number(v); };
-    let sS = 0, sD = 0, sT = 0, anyS = false, anyD = false, anyT = false;
+    let sS = 0, sD = 0, sP = 0, sT = 0, anyS = false, anyD = false, anyP = false, anyT = false;
     KG_SP.forEach(([k]) => {
-      const s = g(k + 'S'), d = g(k + 'D'), tEl = document.querySelector(`.sfIn[data-k="${k}"]`);
-      if (s != null || d != null) { const t = Math.round(((s || 0) + (d || 0)) * 100) / 100; if (tEl) tEl.value = t; }
-      if (s != null) { sS += s; anyS = true; } if (d != null) { sD += d; anyD = true; }
+      const s = g(k + 'S'), d = g(k + 'D'), pv = g(k + 'P'), tEl = document.querySelector(`.sfIn[data-k="${k}"]`);
+      if (s != null || d != null || pv != null) { const t = Math.round(((s || 0) + (d || 0) + (pv || 0)) * 100) / 100; if (tEl) tEl.value = t; }
+      if (s != null) { sS += s; anyS = true; } if (d != null) { sD += d; anyD = true; } if (pv != null) { sP += pv; anyP = true; }
       const t = g(k); if (t != null) { sT += t; anyT = true; }
     });
     const put = (id, v, any) => { const el = document.getElementById(id); if (el) el.textContent = any ? fmtKg(Math.round(v * 100) / 100) : '–'; };
-    put('kgSumS', sS, anyS); put('kgSumD', sD, anyD); put('kgSumT', sT, anyT);
+    put('kgSumS', sS, anyS); put('kgSumD', sD, anyD); put('kgSumP', sP, anyP); put('kgSumT', sT, anyT);
   }
   /* 총주문 = 매장 주문 + 배달 주문, 총매출 = 매장 + 배달 + 포장. 나눠 넣은 값이 하나라도 있으면 자동, 없으면 직접 입력 가능 */
   function syncSalesTotals() {
@@ -3919,7 +3920,7 @@ const App = (() => {
     if (bad) { alert('음수나 글자는 넣을 수 없습니다. 붉게 표시된 칸을 확인하세요.'); return null; }
     if (out.store != null || out.deliv != null || out.take != null) out.total = (out.store || 0) + (out.deliv || 0) + (out.take || 0);
     if (out.ordersS != null || out.ordersD != null) out.orders = (out.ordersS || 0) + (out.ordersD || 0);
-    KG_SP.forEach(([k]) => { if (out[k + 'S'] != null || out[k + 'D'] != null) out[k] = Math.round(((out[k + 'S'] || 0) + (out[k + 'D'] || 0)) * 100) / 100; });
+    KG_SP.forEach(([k]) => { if (out[k + 'S'] != null || out[k + 'D'] != null || out[k + 'P'] != null) out[k] = Math.round(((out[k + 'S'] || 0) + (out[k + 'D'] || 0) + (out[k + 'P'] || 0)) * 100) / 100; });
     if (SALES_F.every(([k]) => out[k] == null)) { alert('숫자를 하나도 넣지 않았습니다.'); return null; }
     return out;
   }
@@ -3963,13 +3964,13 @@ const App = (() => {
       <div class="card"><div class="cl">입력한 날</div><div class="cv">${filled.length}<small>일</small></div></div>
       <div class="card${dates.length - filled.length ? ' warn' : ''}"><div class="cl">미입력</div><div class="cv">${dates.length - filled.length}<small>일</small></div><div class="cs">오늘까지 기준</div></div>
       <div class="card"><div class="cl">총 kg</div><div class="cv sm2">${fmtKg(filled.reduce((a, k) => a + salesKg(S.sales[k]), 0)) || '–'}</div>
-        ${filled.some((k) => hasKgSplit(S.sales[k])) ? `<div class="cs">매장 ${fmtKg(filled.reduce((a, k) => a + kgCh(S.sales[k], 'S'), 0)) || '0kg'} · 배달 ${fmtKg(filled.reduce((a, k) => a + kgCh(S.sales[k], 'D'), 0)) || '0kg'}</div>` : ''}</div></div>`;
+        ${filled.some((k) => hasKgSplit(S.sales[k])) ? `<div class="cs">매장 ${fmtKg(filled.reduce((a, k) => a + kgCh(S.sales[k], 'S'), 0)) || '0kg'} · 배달 ${fmtKg(filled.reduce((a, k) => a + kgCh(S.sales[k], 'D'), 0)) || '0kg'} · 포장 ${fmtKg(filled.reduce((a, k) => a + kgCh(S.sales[k], 'P'), 0)) || '0kg'}</div>` : ''}</div></div>`;
     if (!dates.length) return h + `<div class="notice"><b>아직 오지 않은 달입니다.</b></div>`;
     const kv = S.ui.skg || 'all';   // kg 열 보기: all 합계 · S 매장 · D 배달
-    h += `<div class="filters" style="margin:4px 0 10px"><span class="hint" style="margin:0 6px 0 0">kg 보기</span>${[['all', '합계'], ['S', '매장'], ['D', '배달']].map(([k, n]) => `<button class="fl${kv === k ? ' on' : ''}" data-act="skgView" data-k="${k}">${n}</button>`).join('')}</div>`;
+    h += `<div class="filters" style="margin:4px 0 10px"><span class="hint" style="margin:0 6px 0 0">kg 보기</span>${[['all', '합계'], ['S', '매장'], ['D', '배달'], ['P', '포장']].map(([k, n]) => `<button class="fl${kv === k ? ' on' : ''}" data-act="skgView" data-k="${k}">${n}</button>`).join('')}</div>`;
     const cell = (v, u) => (v == null ? '<span class="dim">–</span>' : (u === 'kg' ? fmtKg(v) : Number(v).toLocaleString('ko-KR')));
-    const kgCell = (r, k) => { const t = r[k]; if (kv !== 'all') return cell(r[k + kv], 'kg'); const s = r[k + 'S'], d = r[k + 'D']; return `${cell(t, 'kg')}${(s != null || d != null) ? `<br><small class="dim">매장 ${fmtKg(s || 0) || '0kg'} · 배달 ${fmtKg(d || 0) || '0kg'}</small>` : ''}`; };
-    const kgHead = kv === 'S' ? ' (매장)' : kv === 'D' ? ' (배달)' : '';
+    const kgCell = (r, k) => { const t = r[k]; if (kv !== 'all') return cell(r[k + kv], 'kg'); const s = r[k + 'S'], d = r[k + 'D'], pv = r[k + 'P']; return `${cell(t, 'kg')}${(s != null || d != null || pv != null) ? `<br><small class="dim">매장 ${fmtKg(s || 0) || '0kg'} · 배달 ${fmtKg(d || 0) || '0kg'}${pv != null ? ` · 포장 ${fmtKg(pv) || '0kg'}` : ''}</small>` : ''}`; };
+    const kgHead = kv === 'S' ? ' (매장)' : kv === 'D' ? ' (배달)' : kv === 'P' ? ' (포장)' : '';
     h += `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>날짜</th><th class="r">총주문</th><th class="r">매장</th><th class="r">배달</th><th class="r">포장</th><th class="r">총매출</th><th class="r">대게${kgHead}</th><th class="r">킹크랩${kgHead}</th><th class="r">랍스터${kgHead}</th><th class="r">주류</th><th>입력자</th></tr></thead><tbody>`;
     dates.slice().reverse().forEach((k) => {
       const r = salesOf(k), d = new Date(k + 'T00:00:00'), lb = `${k.slice(5)} ${WD[d.getDay()]}`;
@@ -3989,7 +3990,7 @@ const App = (() => {
     return { head: split(lines[0]), rows: lines.slice(1).map(split) };
   }
   const CSV_MAP = { '날짜': 'date', '매장': 'storeName', '총주문': 'orders', '매장주문': 'ordersS', '배달주문': 'ordersD', '매장매출': 'store', '배달매출': 'deliv', '포장매출': 'take', '총매출': 'total', '대게kg': 'crab', '킹크랩kg': 'king', '랍스타kg': 'lob', '랍스터kg': 'lob', '주류매출': 'liquor',
-    '대게매장kg': 'crabS', '대게배달kg': 'crabD', '킹크랩매장kg': 'kingS', '킹크랩배달kg': 'kingD', '랍스터매장kg': 'lobS', '랍스타매장kg': 'lobS', '랍스터배달kg': 'lobD', '랍스타배달kg': 'lobD' };
+    '대게매장kg': 'crabS', '대게배달kg': 'crabD', '킹크랩매장kg': 'kingS', '킹크랩배달kg': 'kingD', '랍스터매장kg': 'lobS', '랍스타매장kg': 'lobS', '랍스터배달kg': 'lobD', '랍스타배달kg': 'lobD', '대게포장kg': 'crabP', '킹크랩포장kg': 'kingP', '랍스터포장kg': 'lobP', '랍스타포장kg': 'lobP' };
   function salesCsvImport() {
     const inp = document.createElement('input');
     inp.type = 'file'; inp.accept = '.csv,text/csv';
@@ -4007,11 +4008,11 @@ const App = (() => {
           const d = (r[idx.date] || '').slice(0, 10);
           if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > dateKey()) { skipped++; return; }
           const v = {};
-          ['orders', 'ordersS', 'ordersD', 'store', 'deliv', 'take', 'total', 'crab', 'king', 'lob', 'liquor', 'crabS', 'crabD', 'kingS', 'kingD', 'lobS', 'lobD'].forEach((k) => {
+          ['orders', 'ordersS', 'ordersD', 'store', 'deliv', 'take', 'total', 'crab', 'king', 'lob', 'liquor', 'crabS', 'crabD', 'kingS', 'kingD', 'lobS', 'lobD', 'crabP', 'kingP', 'lobP'].forEach((k) => {
             if (idx[k] == null) return;
             const x = r[idx[k]]; v[k] = (x === '' || x == null) ? null : Number(x); if (isNaN(v[k]) || v[k] < 0) v[k] = null;
           });
-          KG_SP.forEach(([k]) => { if (v[k] == null && (v[k + 'S'] != null || v[k + 'D'] != null)) v[k] = (v[k + 'S'] || 0) + (v[k + 'D'] || 0); });
+          KG_SP.forEach(([k]) => { if (v[k] == null && (v[k + 'S'] != null || v[k + 'D'] != null || v[k + 'P'] != null)) v[k] = (v[k + 'S'] || 0) + (v[k + 'D'] || 0) + (v[k + 'P'] || 0); });
           if (!v.total && v.orders == null && v.store == null) { skipped++; return; }   // 아무 숫자도 없는 날(휴무·빈 줄)
           if (idx.storeName != null && r[idx.storeName] && r[idx.storeName] !== storeName()) otherStore.add(r[idx.storeName]);
           recs.push({ d, v });
@@ -4078,16 +4079,16 @@ const App = (() => {
     const spmx = Math.max(...Object.values(sp), 1);
     if (kg) {
       const split = recs.some((x) => hasKgSplit(x.r));
-      const chS = {}, chD = {};
-      KG_SP.forEach(([k, n]) => { chS[n] = recs.reduce((a, x) => a + (Number(x.r[k + 'S']) || 0), 0); chD[n] = recs.reduce((a, x) => a + (Number(x.r[k + 'D']) || 0), 0); });
-      h += `<div class="hd sub2"><h3>품종별 kg${split ? ' — 매장 · 배달' : ''}</h3>${split ? '<span class="hint" style="margin:0"><i class="legS"></i> 매장 <i class="legD"></i> 배달 <i class="legN"></i> 구분 없음</span>' : ''}</div><div class="loads">${Object.entries(sp).map(([n, v]) => {
-        const s = chS[n], d = chD[n], rest = Math.max(0, v - s - d);
-        return `<div class="lrow"><span class="ln">${n}</span><span class="lbar stack">${split ? `<i class="s" style="width:${s / spmx * 100}%"></i><i class="d" style="width:${d / spmx * 100}%"></i><i class="n" style="width:${rest / spmx * 100}%"></i>` : `<i style="width:${v / spmx * 100}%"></i>`}</span><span class="lv">${fmtKg(v)}${split ? `<small class="dim"> (매장 ${fmtKg(s) || '0kg'} · 배달 ${fmtKg(d) || '0kg'})</small>` : ''}</span></div>`; }).join('')}</div>`;
+      const chS = {}, chD = {}, chP = {};
+      KG_SP.forEach(([k, n]) => { chS[n] = recs.reduce((a, x) => a + (Number(x.r[k + 'S']) || 0), 0); chD[n] = recs.reduce((a, x) => a + (Number(x.r[k + 'D']) || 0), 0); chP[n] = recs.reduce((a, x) => a + (Number(x.r[k + 'P']) || 0), 0); });
+      h += `<div class="hd sub2"><h3>품종별 kg${split ? ' — 매장 · 배달 · 포장' : ''}</h3>${split ? '<span class="hint" style="margin:0"><i class="legS"></i> 매장 <i class="legD"></i> 배달 <i class="legP"></i> 포장 <i class="legN"></i> 구분 없음</span>' : ''}</div><div class="loads">${Object.entries(sp).map(([n, v]) => {
+        const s = chS[n], d = chD[n], pp = chP[n], rest = Math.max(0, v - s - d - pp);
+        return `<div class="lrow"><span class="ln">${n}</span><span class="lbar stack">${split ? `<i class="s" style="width:${s / spmx * 100}%"></i><i class="d" style="width:${d / spmx * 100}%"></i><i class="p" style="width:${pp / spmx * 100}%"></i><i class="n" style="width:${rest / spmx * 100}%"></i>` : `<i style="width:${v / spmx * 100}%"></i>`}</span><span class="lv">${fmtKg(v)}${split ? `<small class="dim"> (매장 ${fmtKg(s) || '0kg'} · 배달 ${fmtKg(d) || '0kg'}${pp ? ` · 포장 ${fmtKg(pp)}` : ''})</small>` : ''}</span></div>`; }).join('')}</div>`;
       if (split) {
-        const tS = kgCh({ crabS: chS['대게'], kingS: chS['킹크랩'], lobS: chS['랍스터'] }, 'S'), tD = kgCh({ crabD: chD['대게'], kingD: chD['킹크랩'], lobD: chD['랍스터'] }, 'D'), tt = tS + tD;
-        h += `<div class="hd sub2"><h3>채널별 kg</h3></div><div class="tkLogWrap"><table class="tkLog cList"><thead><tr><th></th><th class="r">매장</th><th class="r">배달</th><th class="r">합계</th><th class="r">배달 비중</th></tr></thead><tbody>
-          ${KG_SP.map(([k, n]) => { const s = chS[n], d = chD[n]; return `<tr><td><b>${n}</b></td><td class="r">${fmtKg(s) || '–'}</td><td class="r">${fmtKg(d) || '–'}</td><td class="r"><b>${fmtKg(s + d) || '–'}</b></td><td class="r">${s + d ? Math.round(d / (s + d) * 100) + '%' : '–'}</td></tr>`; }).join('')}
-          <tr><td><b>전체</b></td><td class="r">${fmtKg(tS) || '–'}</td><td class="r">${fmtKg(tD) || '–'}</td><td class="r"><b>${fmtKg(tt) || '–'}</b></td><td class="r">${tt ? Math.round(tD / tt * 100) + '%' : '–'}</td></tr></tbody></table></div>`;
+        const tS = kgCh({ crabS: chS['대게'], kingS: chS['킹크랩'], lobS: chS['랍스터'] }, 'S'), tD = kgCh({ crabD: chD['대게'], kingD: chD['킹크랩'], lobD: chD['랍스터'] }, 'D'), tP = kgCh({ crabP: chP['대게'], kingP: chP['킹크랩'], lobP: chP['랍스터'] }, 'P'), tt = tS + tD + tP;
+        h += `<div class="hd sub2"><h3>채널별 kg</h3></div><div class="tkLogWrap"><table class="tkLog cList"><thead><tr><th></th><th class="r">매장</th><th class="r">배달</th><th class="r">포장</th><th class="r">합계</th><th class="r">배달 비중</th></tr></thead><tbody>
+          ${KG_SP.map(([k, n]) => { const s = chS[n], d = chD[n], pp = chP[n], all = s + d + pp; return `<tr><td><b>${n}</b></td><td class="r">${fmtKg(s) || '–'}</td><td class="r">${fmtKg(d) || '–'}</td><td class="r">${fmtKg(pp) || '–'}</td><td class="r"><b>${fmtKg(all) || '–'}</b></td><td class="r">${all ? Math.round(d / all * 100) + '%' : '–'}</td></tr>`; }).join('')}
+          <tr><td><b>전체</b></td><td class="r">${fmtKg(tS) || '–'}</td><td class="r">${fmtKg(tD) || '–'}</td><td class="r">${fmtKg(tP) || '–'}</td><td class="r"><b>${fmtKg(tt) || '–'}</b></td><td class="r">${tt ? Math.round(tD / tt * 100) + '%' : '–'}</td></tr></tbody></table></div>`;
       }
     }
     const lq = recs.reduce((a, x) => a + (Number(x.r.liquor) || 0), 0);
@@ -5557,7 +5558,7 @@ const App = (() => {
     const key = viewKey(), rec = S.days[key].inst[tid], t = tpl(tid); if (!rec) return;
     modal(`메모 — ${t.title}`, `<label>어떻게 했나요<textarea id="tnNote" rows="4" placeholder="예: 수조 3번 온도 1도 내림 · 이끼 닦음 · 특이사항 없음">${esc(rec.note || '')}</textarea></label>
       <p class="hint">${rec.s === 'done' ? `${esc(rec.by || '')} ${rec.at || ''} 완료` : '아직 완료 전입니다. 메모만 먼저 남겨 둘 수 있습니다.'}</p>`, () => {
-      const v = $('#tnNote').value.trim(); if (v) rec.note = v; else delete rec.note;
+      const v = $('#tnNote').value.trim(); if (v) rec.note = v; else delete rec.note; rec.u = Date.now();
       rec.noteBy = (S.ui.whoDate === dateKey() ? S.ui.who : '') || rec.noteBy || '';
       save(); render();
     }, '저장');
@@ -5566,7 +5567,7 @@ const App = (() => {
   function doComplete(tid, extra) {
     const key = viewKey(), rec = S.days[key].inst[tid];
     const d = new Date();
-    Object.assign(rec, { s: 'done', by: S.ui.who, at: `${pad(d.getHours())}:${pad(d.getMinutes())}` }, extra);
+    Object.assign(rec, { s: 'done', by: S.ui.who, at: `${pad(d.getHours())}:${pad(d.getMinutes())}`, u: Date.now() }, extra);   // u: 마지막으로 손댄 시각 — 기기 간 합칠 때 더 나중 것이 이긴다
     save(); render();
     instantAlert(tid, key, rec);
   }
@@ -5698,16 +5699,16 @@ const App = (() => {
       if (mm) {
         const tid = m.dataset.tid, key = viewKey(), rec = S.days[key].inst[tid], v = mm.dataset.menu;
         if (staffLocked() && (v === 'title' || v === 'memo' || v.startsWith('role:'))) { blockedBanner(); return; }
-        if (v === 'undo') { S.days[key].inst[tid] = { s: 'todo', role: rec.role }; }
+        if (v === 'undo') { S.days[key].inst[tid] = { s: 'todo', role: rec.role, u: Date.now() }; }
         else if (v === 'skip') {
           const why = prompt('건너뛰는 이유를 적어주세요.\n(예: 재료 미입고)');
           if (why === null) return;
-          Object.assign(rec, { s: 'skip', reason: why.trim() || '사유 없음', by: S.ui.who });
+          Object.assign(rec, { s: 'skip', reason: why.trim() || '사유 없음', by: S.ui.who, u: Date.now() });
         } else if (v === 'memo') { closeModal(); editMemo(tid); return; }
         else if (v === 'note') { closeModal(); taskNoteModal(tid); return; }
         else if (v === 'title') { closeModal(); editTitle(tid); return; }
-        else if (v.startsWith('role:')) { rec.role = v.slice(5); }
-        else if (v.startsWith('by:')) { rec.by = v.slice(3); }
+        else if (v.startsWith('role:')) { rec.role = v.slice(5); rec.u = Date.now(); }
+        else if (v.startsWith('by:')) { rec.by = v.slice(3); rec.u = Date.now(); }
         save(); closeModal(); render(); return;
       }
 
@@ -5929,7 +5930,7 @@ const App = (() => {
         case 'toggle': {
           const rec = S.days[key].inst[id];
           if (rec.s === 'todo') completeTask(id);
-          else { S.days[key].inst[id] = { s: 'todo', role: rec.role }; save(); render(); }
+          else { S.days[key].inst[id] = { s: 'todo', role: rec.role, u: Date.now() }; save(); render(); }
           break;
         }
         case 'menu': taskMenu(id); break;
@@ -6739,6 +6740,7 @@ const App = (() => {
       S = doc; S.ui = ui; hydrate(true); render();
     });
     document.addEventListener('cloud-status', () => { if (view === 'today' || view === 'settings') render(); });
+    document.addEventListener('doc-merged', (e) => { if (e.detail && e.detail.key === 'state:' + (Store.meta && Store.meta.current) && $('#modal').hidden) render(); });   // 저장 직전 다른 기기 기록과 합쳐졌으면 화면도 맞춘다
     // 쓰다가 저장이 깨지는 경우(용량 초과 등)도 즉시 화면에 드러낸다
     document.addEventListener('storage-broken', () => { view = 'today'; render(); });
   }

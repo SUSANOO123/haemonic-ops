@@ -150,9 +150,28 @@ const Store = (() => {
     } catch (e) { cloudFail(e); return null; }
   }
 
+  /* 저장 직전 합치기 (2026-10-10, 안산점 "체크가 다 풀림" 신고 뒤):
+     문서를 통째로 덮어쓰는 구조라, 실시간 신호를 놓쳐 옛 상태를 든 기기가 저장하면 다른 기기의 체크가 전부 되돌아갔다.
+     이제 서버에 내가 모르는 더 새 저장이 있으면 먼저 항목 단위로 합친 뒤 올린다 — 완료는 미완료에 지지 않고, 더 나중에 손댄 쪽이 이긴다. */
+  async function mergeBeforePut(k, v) {
+    if (!(k.startsWith('state:') || k.startsWith('shared:'))) return v;
+    try {
+      const { data, error } = await supa.client.from('docs').select('doc, saved_at').eq('key', k).maybeSingle();
+      if (error || !data || !data.doc) return v;
+      const srv = data.doc, srvAt = srv.savedAt || Number(data.saved_at) || 0;
+      if (!(srvAt > (lastUp[k] || 0)) || srvAt === v.savedAt) return v;
+      const merged = mergeDocs(v, srv);
+      merged.savedAt = Date.now();
+      Object.keys(v).forEach((f) => { if (!(f in merged)) delete v[f]; });
+      Object.assign(v, merged);           // 앱이 들고 있는 상태(S) 자체를 합친 결과로 바꾼다
+      document.dispatchEvent(new CustomEvent('doc-merged', { detail: { key: k } }));
+    } catch (_) { /* 합치기 실패 시 그냥 저장 */ }
+    return v;
+  }
   async function cloudPut(k, v) {
     if (supa) {
       try {
+        v = await mergeBeforePut(k, v);
         lastUp[k] = v.savedAt;
         const { error } = await supa.client.from('docs').upsert({ key: k, doc: v, saved_at: v.savedAt || Date.now(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         if (error) throw error;
@@ -269,7 +288,7 @@ const Store = (() => {
     });
     const mergeDay = (n, o) => ({
       ...o, ...n,
-      inst: unionObj(n.inst, o.inst, (ni, oi) => ((ni.s && ni.s !== 'todo') || !(oi.s && oi.s !== 'todo')) ? ni : oi),
+      inst: unionObj(n.inst, o.inst, (ni, oi) => (ni.u && oi.u && ni.u !== oi.u) ? (ni.u > oi.u ? ni : oi) : (((ni.s && ni.s !== 'todo') || !(oi.s && oi.s !== 'todo')) ? ni : oi)),
       extras: unionBy(n.extras, o.extras, 'id') || [],
       notified: { ...(o.notified || {}), ...(n.notified || {}) },
     });
@@ -312,7 +331,9 @@ const Store = (() => {
     const ch = supa.client.channel('doc-' + k.replace(/[^a-zA-Z0-9]/g, '_'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'docs_poke', filter: 'key=eq.' + k }, (payload) => { const row = payload.new || {}; poke(Number(row.saved_at) || 0); })
       .subscribe();
-    list.push(() => { try { supa.client.removeChannel(ch); } catch (_) { /* 무시 */ } });
+    // 실시간 신호를 놓쳤을 때를 대비해 60초마다 서버 저장 시각만 가볍게 확인한다 (포스가 잠들었다 깨어난 뒤 옛 상태로 남는 것 방지)
+    const iv = setInterval(async () => { try { const { data } = await supa.client.from('docs_poke').select('saved_at').eq('key', k).maybeSingle(); if (data) poke(Number(data.saved_at) || 0); } catch (_) { /* 무시 */ } }, 60000);
+    list.push(() => { clearInterval(iv); try { supa.client.removeChannel(ch); } catch (_) { /* 무시 */ } });
   }
   /* 다른 문서(예: 다른 매장)의 변경을 받는다 — 대시보드용. 돌려주는 함수를 부르면 구독을 끊는다 */
   function watchDoc(k, cb) {

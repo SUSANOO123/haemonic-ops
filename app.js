@@ -965,7 +965,7 @@ const App = (() => {
           <label>사장님 비밀번호<input id="rgPw" type="password" autocomplete="current-password"></label>
           <button class="btn primary" data-act="deviceRegister">이 기기 등록</button>
           <p class="hint">첫 등록이면 지금 넣는 비밀번호가 사장님 비밀번호가 됩니다 (안산점·안양점 공통). 등록은 사장님만 합니다.</p>
-          <p class="hint">어제 등록했는데 또 뜨나요? 이 브라우저가 껐다 켤 때 저장소를 지우고 있는 것입니다. 등록 뒤에 나오는 <b>이 기기 전용 주소</b>를 홈 화면에 추가해 두면 그 주소로 열 때마다 자동으로 복구됩니다.</p>
+          <p class="hint"><b>매장에서 한 번 등록하면 그 매장 인터넷에서는 어떤 기기든 등록 없이 열립니다.</b> 이 화면이 매장에서 떴다면 이 매장 인터넷이 아직 기억되지 않은 것이니, 사장님이 여기서 한 번만 등록해 주세요. 매장 밖에서 쓰는 기기는 등록 뒤 나오는 전용 주소를 홈 화면에 두면 됩니다.</p>
         </div>
       </div>
       <div class="card" style="margin-top:14px"><b>🎓 교육 자료는 등록 없이 볼 수 있습니다.</b>
@@ -997,11 +997,11 @@ const App = (() => {
     if (justRegistered) { const x = $('#modal [data-act="mClose"]'); if (x) x.hidden = true; }   // 등록 직후엔 '앱 열기'로만 닫는다 (새로 불러와야 기록이 보인다)
   }
   /* 설정 › 등록된 기기 — 사장님 모드에서 목록·해제 */
-  let devList = null, devMine = '';
+  let devList = null, devMine = '', netsL = null, myIpV = '';
   function deviceSettings() {
     const sp = Store.supa || {};
     if (!sp.signedIn) return '';
-    if (devList === null) { devList = []; Promise.all([Store.deviceList().catch(() => []), Store.deviceHash()]).then(([l, h]) => { devList = l; devMine = h; if (view === 'settings') render(); }); }
+    if (devList === null) { devList = []; netsL = []; Promise.all([Store.deviceList().catch(() => []), Store.deviceHash(), Store.netList().catch(() => []), Store.myIp().catch(() => '')]).then(([l, h, n, ip]) => { devList = l; devMine = h; netsL = n; myIpV = ip; if (view === 'settings') render(); }); }
     const fmt = (t) => t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
     const stName = (id) => id ? ((Store.meta.stores.find((x) => x.id === id) || {}).name || id) : '공용';
     const act = devList.filter((d) => d.active);
@@ -1011,7 +1011,13 @@ const App = (() => {
         ${act.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.key_hash === devMine ? ' <span class="chip today">이 기기</span>' : ''}</td><td>${esc(stName(d.store))}</td><td class="mut">${fmt(d.created_at)}</td><td class="mut">${fmt(d.last_seen)}</td>
           <td>${d.key_hash === devMine ? '' : `<button class="btn sm danger" data-act="deviceRevoke" data-id="${d.id}" data-name="${esc(d.name)}">끊기</button>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
       ${!sp.device && act.length === 0 ? `<div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="register">이 기기 등록하기</button></div>` : ''}
-      ${sp.device ? `<div class="rowbtns" style="margin-top:8px"><button class="btn sm" data-act="deviceLink">📌 이 기기 전용 주소 보기</button><span class="hint" style="margin:0">매일 등록이 풀리는 기기는 이 주소를 홈 화면에 두면 자동 복구됩니다.</span></div>` : ''}`;
+      ${sp.device ? `<div class="rowbtns" style="margin-top:8px"><button class="btn sm" data-act="deviceLink">📌 이 기기 전용 주소 보기</button><span class="hint" style="margin:0">매장 밖에서 쓰는 기기(사장님 폰 등)는 이 주소를 홈 화면에 두면 등록이 풀려도 자동 복구됩니다.</span></div>` : ''}
+      <div class="hd sub2"><h3>등록된 매장 인터넷</h3></div>
+      <p class="hint" style="margin:0 0 8px">사장님이 매장에서 기기를 등록하면 그 매장의 인터넷 주소를 서버가 기억합니다. <b>같은 매장 인터넷에서는 어떤 기기든 등록 없이 그냥 열립니다</b> — 포스 브라우저가 저장소를 지워도 됩니다. 매장 밖(집·LTE)은 전처럼 등록된 기기만 열립니다. 인터넷 주소가 바뀌면 등록된 포스가 한 번 열 때 자동으로 따라갑니다.${sp.viaNet ? ' <b>이 기기는 지금 매장 인터넷으로 열렸습니다.</b>' : ''}${myIpV ? ` <span class="mut">지금 주소 ${esc(myIpV)}</span>` : ''}</p>
+      ${(netsL || []).filter((n) => n.active).length ? `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>매장</th><th>인터넷 주소</th><th>기억한 때</th><th>마지막 사용</th><th></th></tr></thead><tbody>
+        ${(netsL || []).filter((n) => n.active).map((n) => `<tr><td><b>${esc(stName(n.store))}</b>${n.ip === myIpV ? ' <span class="chip today">지금 여기</span>' : ''}<div class="mut" style="font-size:11px">${esc(n.name || '')}</div></td><td class="mono">${esc(n.ip)}</td><td class="mut">${fmt(n.created_at)}</td><td class="mut">${fmt(n.last_seen)}</td>
+          <td><button class="btn sm danger" data-act="netRevoke" data-id="${esc(n.ip)}" data-name="${esc(stName(n.store))}">끊기</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<p class="hint"><b>아직 기억된 매장 인터넷이 없습니다.</b> 각 매장에서 사장님이 기기를 한 번 등록하거나, 이미 등록된 포스가 앱을 한 번 열면 자동으로 기억됩니다.</p>'}`;
   }
   function vLocked() {
     const g = groupOf(view) || {};
@@ -6207,6 +6213,7 @@ const App = (() => {
         case 'ownerLogin': ownerLoginModal(); break;
         case 'deviceRegister': deviceRegisterGo(); break;
         case 'deviceLink': deviceLinkModal(false); break;
+        case 'netRevoke': { if (!confirm(`${b.dataset.name} 인터넷(${id})을 끊을까요?\n이 인터넷에서는 다시 등록된 기기만 열립니다.`)) break; Store.netRevoke(id).then(() => { devList = null; render(); banner('매장 인터넷을 끊었습니다', id); }).catch((e) => alert('끊지 못했습니다: ' + (e.message || e))); break; }
         case 'deviceLinkCopy': { const l = Store.deviceLink(); const done = () => banner('주소를 복사했습니다', '이 기기의 홈 화면·즐겨찾기에 추가하세요.');
           if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).then(done).catch(() => prompt('아래 주소를 복사하세요', l)); else prompt('아래 주소를 복사하세요', l); break; }
         case 'deviceRevoke': { if (!confirm(`"${b.dataset.name}" 기기를 끊을까요? 그 기기에서는 매장 기록이 바로 안 보이게 됩니다.`)) return;

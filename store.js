@@ -406,8 +406,9 @@ const Store = (() => {
       const u = data.session.user || {};
       let deviceOk = true;
       try { const r = await client.rpc('device_ok'); if (!r.error && typeof r.data === 'boolean') deviceOk = r.data; } catch (_) { /* 서버에 아직 없으면 허용 */ }
-      supa = { client, url: cfg.url, email: u.email || '', anon: !!u.is_anonymous || !u.email, deviceOk, device: !!devKey() };
+      supa = { client, url: cfg.url, email: u.email || '', anon: !!u.is_anonymous || !u.email, deviceOk, device: !!devKey(), viaNet: deviceOk && !devKey() };   // viaNet: 열쇠 없이 매장 인터넷으로 통과
       if (deviceOk && devKey()) client.rpc('device_touch').then(() => {}, () => {});
+      else if (deviceOk) client.rpc('net_touch').then(() => {}, () => {});
       client.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { supa = null; document.dispatchEvent(new Event('cloud-status')); } });
       return supa;
     } catch (e) { cloudFail(e); return null; }
@@ -469,6 +470,18 @@ const Store = (() => {
     const { data, error } = await supa.client.from('devices').select('id, name, store, created_at, last_seen, active, key_hash').order('created_at');
     if (error) throw new Error(error.message); return data || [];
   }
+  /* 매장 인터넷(IP) 목록 — 사장님이 매장에서 기기를 등록하면 서버가 기억한다. 같은 인터넷에서는 열쇠 없이 열린다 */
+  async function netList() {
+    if (!supa) return [];
+    const { data, error } = await supa.client.from('store_nets').select('ip, store, name, created_at, last_seen, active').order('created_at');
+    if (error) throw new Error(error.message); return data || [];
+  }
+  async function netRevoke(ip) {
+    if (!supa) return false;
+    const { error } = await supa.client.from('store_nets').update({ active: false }).eq('ip', ip);
+    if (error) throw new Error(error.message); return true;
+  }
+  async function myIp() { if (!supa) return ''; const { data } = await supa.client.rpc('req_ip'); return data || ''; }
   async function deviceRevoke(id) {
     if (!supa) return false;
     const { error } = await supa.client.from('devices').update({ active: false }).eq('id', id);
@@ -650,8 +663,8 @@ const Store = (() => {
   return {
     init, load, save, flush, setMeta, switchTo, dumpAll, restoreAll, loadStore, saveStore, loadShared, saveShared, watchShared,
     supaSetConfig, supaSignIn, supaSignOut, supaEvent, supaEvents, supaTgUpdates, watchDoc,
-    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, deviceLink, trainingDoc, trainingSave,
-    get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), deviceOk: supa ? supa.deviceOk !== false : true, device: !!devKey(), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
+    deviceRegister, deviceList, deviceRevoke, deviceHash, deviceForget, deviceLink, netList, netRevoke, myIp, trainingDoc, trainingSave,
+    get supa() { const cfg = supaCfg || supaConfig(); return { configured: !!(cfg && cfg.url && cfg.key), url: cfg ? cfg.url : '', signedIn: !!supa, anon: !!(supa && supa.anon), deviceOk: supa ? supa.deviceOk !== false : true, device: !!devKey(), viaNet: !!(supa && supa.viaNet), email: supa ? supa.email : '', libLoaded: !!(window.supabase && window.supabase.createClient) }; },
     get mode() { return mode; },
     get ok() { return writable; },
     get label() {

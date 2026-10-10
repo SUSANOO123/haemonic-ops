@@ -288,7 +288,7 @@ const Store = (() => {
     });
     const mergeDay = (n, o) => ({
       ...o, ...n,
-      inst: unionObj(n.inst, o.inst, (ni, oi) => (ni.u && oi.u && ni.u !== oi.u) ? (ni.u > oi.u ? ni : oi) : (((ni.s && ni.s !== 'todo') || !(oi.s && oi.s !== 'todo')) ? ni : oi)),
+      inst: unionObj(n.inst, o.inst, (ni, oi) => (ni.u || oi.u) ? ((ni.u || 0) >= (oi.u || 0) ? ni : oi) : (((ni.s && ni.s !== 'todo') || !(oi.s && oi.s !== 'todo')) ? ni : oi)),   // 손댄 시각이 있는 쪽(더 늦은 쪽)이 이기고, 둘 다 없으면 완료 우선
       extras: unionBy(n.extras, o.extras, 'id') || [],
       notified: { ...(o.notified || {}), ...(n.notified || {}) },
     });

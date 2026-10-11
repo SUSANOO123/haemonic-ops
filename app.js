@@ -6286,18 +6286,21 @@ const App = (() => {
       if (b.dataset.act === 'slipTax') { const p = payrollOf(S.ui.lmonth || curMonth()); if (p) { p.slips = p.slips || {}; p.slips[b.dataset.n] = p.slips[b.dataset.n] || {}; p.slips[b.dataset.n].tax = Math.max(0, Number(b.value) || 0); save(); render(); } }
       if (b.dataset.act === 'tankMaxKg') { S.settings.tankMaxKg = Math.max(10, Number(b.value) || 700); save(); render(); }
       if (b.dataset.act === 'crabHold') { S.settings.crabHold = S.settings.crabHold || {}; S.settings.crabHold[b.dataset.sp] = Math.max(1, Number(b.value) || 28); save(); render(); }
-      if (b.dataset.act === 'healthMonths') { S.settings.healthMonths = Math.max(1, Number(b.value) || 12); save(); render(); }
+      /* 날짜 칸은 한 자리씩 고칠 때마다 change 가 나는데, 그때마다 화면을 다시 그리면 입력 칸이 새로 만들어져 치던 날짜가 사라진다
+         (보건증 신고 2026-10-09). 칸에 아직 커서가 있으면 손을 뗀 뒤에 다시 그린다. */
+      const renderLater = () => { if (document.activeElement === b) b.addEventListener('blur', () => render(), { once: true }); else render(); };
+      if (b.dataset.act === 'healthMonths') { S.settings.healthMonths = Math.max(1, Number(b.value) || 12); save(); renderLater(); }
       if (b.dataset.act === 'healthDate' || b.dataset.act === 'healthMemo' || b.dataset.act === 'healthName') {
         const e = healthList().find((x) => x.id === b.dataset.id); if (!e) return;
         if (b.dataset.act === 'healthDate') e.issued = b.value; else if (b.dataset.act === 'healthMemo') e.memo = b.value.trim(); else e.name = b.value.trim();
-        save(); if (b.dataset.act === 'healthDate') render();
+        save(); if (b.dataset.act === 'healthDate') renderLater();
       }
-      if (b.dataset.act === 'hyOwner') { const o = hygieneOf().owner; o[b.dataset.f] = b.dataset.f === 'every' ? Math.max(1, Number(b.value) || 12) : b.value.trim(); save(); if (b.dataset.f !== 'org') render(); }
-      if (b.dataset.act === 'hyStaff') { const hs = hygieneOf().staff; hs[b.dataset.id] = hs[b.dataset.id] || {}; hs[b.dataset.id][b.dataset.f] = b.value.trim(); save(); if (b.dataset.f === 'done') render(); }
+      if (b.dataset.act === 'hyOwner') { const o = hygieneOf().owner; o[b.dataset.f] = b.dataset.f === 'every' ? Math.max(1, Number(b.value) || 12) : b.value.trim(); save(); if (b.dataset.f !== 'org') renderLater(); }
+      if (b.dataset.act === 'hyStaff') { const hs = hygieneOf().staff; hs[b.dataset.id] = hs[b.dataset.id] || {}; hs[b.dataset.id][b.dataset.f] = b.value.trim(); save(); if (b.dataset.f === 'done') renderLater(); }
       if (b.dataset.act === 'sfrom' || b.dataset.act === 'sto') {
         const v = b.value; if (v && v <= dateKey()) S.ui[b.dataset.act] = v;
         if (S.ui.sfrom && S.ui.sto && S.ui.sfrom > S.ui.sto) S.ui.sto = S.ui.sfrom;
-        save(); render();
+        save(); renderLater();
       }
       if (b.dataset.act === 'supaUrl' || b.dataset.act === 'supaKey') {
         const u = (document.querySelector('[data-act="supaUrl"]') || {}).value || '', k = (document.querySelector('[data-act="supaKey"]') || {}).value || '';

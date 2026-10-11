@@ -1022,10 +1022,11 @@ const App = (() => {
     const stName = (id) => id ? ((Store.meta.stores.find((x) => x.id === id) || {}).name || id) : '공용';
     const act = devList.filter((d) => d.active);
     return `<div class="hd sub2"><h3>등록된 기기</h3></div>
-      <p class="hint" style="margin:0 0 8px">매장 기록은 여기 있는 기기에서만 보입니다. 새 기기는 그 기기에서 앱을 열어 "기기 등록"으로 추가합니다. 잃어버린 기기는 <b>끊기</b>로 바로 막을 수 있습니다.${act.length ? '' : ' <b>아직 등록된 기기가 없어 지금은 어디서나 열립니다.</b> 이 기기부터 등록하세요.'}</p>
+      <p class="hint" style="margin:0 0 8px">매장 밖에서 매장 기록을 볼 수 있는 기기 목록입니다. 새 기기는 그 기기에서 앱을 열어 "기기 등록"으로 추가합니다. 쓰지 않거나 잃어버린 기기는 <b>삭제</b>로 바로 막을 수 있습니다.${act.length ? '' : ' <b>아직 등록된 기기가 없어 지금은 어디서나 열립니다.</b> 이 기기부터 등록하세요.'}</p>
       ${act.length ? `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>기기</th><th>매장</th><th>등록</th><th>마지막 사용</th><th></th></tr></thead><tbody>
         ${act.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.key_hash === devMine ? ' <span class="chip today">이 기기</span>' : ''}</td><td>${esc(stName(d.store))}</td><td class="mut">${fmt(d.created_at)}</td><td class="mut">${fmt(d.last_seen)}</td>
-          <td>${d.key_hash === devMine ? '' : `<button class="btn sm danger" data-act="deviceRevoke" data-id="${d.id}" data-name="${esc(d.name)}">끊기</button>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
+          <td>${d.key_hash === devMine ? '<span class="mut" style="font-size:11px">사용 중</span>' : `<button class="btn sm danger" data-act="deviceRevoke" data-id="${d.id}" data-name="${esc(d.name)}">삭제</button>`}</td></tr>`).join('')}</tbody></table></div>
+      <p class="hint" style="margin-top:6px">삭제하면 그 기기는 매장 밖에서 더 이상 열 수 없습니다. 매장 인터넷 안에서는 등록 없이도 열리므로, 매일 새로 생겼던 포스 기기들은 지워도 됩니다. 지금 쓰고 있는 이 기기는 지울 수 없습니다.</p>` : ''}
       ${!sp.device && act.length === 0 ? `<div class="rowbtns" style="margin-top:8px"><button class="btn primary" data-act="view" data-v="register">이 기기 등록하기</button></div>` : ''}
       ${sp.device ? `<div class="rowbtns" style="margin-top:8px"><button class="btn sm" data-act="deviceLink">📌 이 기기 전용 주소 보기</button><span class="hint" style="margin:0">매장 밖에서 쓰는 기기(사장님 폰 등)는 이 주소를 홈 화면에 두면 등록이 풀려도 자동 복구됩니다.</span></div>` : ''}
       <div class="hd sub2"><h3>등록된 매장 인터넷</h3></div>
@@ -6233,8 +6234,8 @@ const App = (() => {
         case 'netRevoke': { if (!confirm(`${b.dataset.name} 인터넷(${id})을 끊을까요?\n이 인터넷에서는 다시 등록된 기기만 열립니다.`)) break; Store.netRevoke(id).then(() => { devList = null; render(); banner('매장 인터넷을 끊었습니다', id); }).catch((e) => alert('끊지 못했습니다: ' + (e.message || e))); break; }
         case 'deviceLinkCopy': { const l = Store.deviceLink(); const done = () => banner('주소를 복사했습니다', '이 기기의 홈 화면·즐겨찾기에 추가하세요.');
           if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).then(done).catch(() => prompt('아래 주소를 복사하세요', l)); else prompt('아래 주소를 복사하세요', l); break; }
-        case 'deviceRevoke': { if (!confirm(`"${b.dataset.name}" 기기를 끊을까요? 그 기기에서는 매장 기록이 바로 안 보이게 됩니다.`)) return;
-          Store.deviceRevoke(id).then(() => { devList = null; banner('기기를 끊었습니다', b.dataset.name); render(); }).catch((e) => alert('실패: ' + e.message)); break; }
+        case 'deviceRevoke': { if (!confirm(`"${b.dataset.name}" 기기를 삭제할까요?\n매장 밖에서는 바로 안 보이게 됩니다. (매장 인터넷 안에서는 그대로 열립니다)`)) return;
+          Store.deviceRevoke(id).then(() => { devList = null; banner('기기를 삭제했습니다', b.dataset.name); render(); }).catch((e) => alert('실패: ' + e.message)); break; }
         case 'ownerPw': ownerPwModal(); break;
         case 'ownerLock': ownerLock(false); break;
         case 'supaLogout': { if (!confirm('서버 계정에서 로그아웃할까요? 이 기기는 자동 연결로 돌아갑니다.')) return; Store.flush().then(() => Store.supaSignOut()).then(() => location.reload()); break; }

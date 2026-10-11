@@ -6526,6 +6526,7 @@ const App = (() => {
       S.ui.slot = null;        // 앱을 열면 지금 시간대부터 보여준다
       S.ui.month = dateKey().slice(0, 7);
       S.ui.mdate = dateKey();
+      ['cmonth', 'pmonth', 'smonth', 'lmonth', 'nmonth'].forEach((k) => { delete S.ui[k]; });   // 원가·손익·매출·인건비·공지도 이번 달부터 (지난달에 머물러 있던 문제, 2026-10-11)
     }
     if (!S.recipes) S.recipes = [];
     if (!S.purchases) S.purchases = [];

@@ -32,7 +32,7 @@ grant execute on function public.req_ip() to authenticated;
 -- 3) 등록된 기기이거나, 등록된 매장 인터넷에서 왔으면 통과
 create or replace function public.device_ok() returns boolean
 language plpgsql stable security definer set search_path = public as $$
-declare k text; h text; ip text;
+declare k text; h text; v_ip text;
 begin
   if not exists (select 1 from public.devices where active) then return true; end if;
   begin k := current_setting('request.headers', true)::json->>'x-device-key'; exception when others then k := null; end;
@@ -40,8 +40,8 @@ begin
     h := encode(sha256(convert_to(k, 'utf8')), 'hex');
     if exists (select 1 from public.devices where key_hash = h and active) then return true; end if;
   end if;
-  ip := public.req_ip();
-  if ip is not null and exists (select 1 from public.store_nets where store_nets.ip = req_ip() and active) then return true; end if;
+  v_ip := public.req_ip();
+  if v_ip is not null and exists (select 1 from public.store_nets where store_nets.ip = v_ip and active) then return true; end if;
   return false;
 end $$;
 
@@ -49,16 +49,16 @@ end $$;
 --    "공용(사장님 기기)"은 매장이 없으므로 집 인터넷이 등록되지 않는다.
 create or replace function public.device_touch() returns void
 language plpgsql security definer set search_path = public as $$
-declare k text; d record; ip text;
+declare k text; d record; v_ip text;   -- 변수 이름을 열 이름(ip)과 다르게 — 같으면 "column reference ip is ambiguous"
 begin
   begin k := current_setting('request.headers', true)::json->>'x-device-key'; exception when others then k := null; end;
   if coalesce(k, '') = '' then return; end if;
   select * into d from public.devices where key_hash = encode(sha256(convert_to(k, 'utf8')), 'hex') and active;
   if d is null then return; end if;
   update public.devices set last_seen = now() where id = d.id;
-  ip := public.req_ip();
-  if d.store is not null and ip is not null then
-    insert into public.store_nets(ip, store, name, last_seen) values (ip, d.store, d.name || ' 접속', now())
+  v_ip := public.req_ip();
+  if d.store is not null and v_ip is not null then
+    insert into public.store_nets(ip, store, name, last_seen) values (v_ip, d.store, d.name || ' 접속', now())
       on conflict (ip) do update set last_seen = now(), store = excluded.store, active = true;
   end if;
 end $$;
@@ -66,18 +66,18 @@ end $$;
 -- 매장 인터넷에서 열쇠 없이 들어온 기기도 "마지막 사용"을 남긴다
 create or replace function public.net_touch() returns void
 language plpgsql security definer set search_path = public as $$
-declare ip text;
+declare v_ip text;
 begin
-  ip := public.req_ip();
-  if ip is null then return; end if;
-  update public.store_nets set last_seen = now() where store_nets.ip = net_touch.ip and active;
+  v_ip := public.req_ip();
+  if v_ip is null then return; end if;
+  update public.store_nets set last_seen = now() where store_nets.ip = v_ip and active;
 end $$;
 grant execute on function public.net_touch() to authenticated;
 
 -- 5) 기기 등록 때 매장 인터넷도 같이 기억한다
 create or replace function public.device_register(p_owner_hash text, p_name text, p_store text default null) returns text
 language plpgsql security definer set search_path = public as $$
-declare v_doc jsonb; v_hash text; v_key text; v_now bigint := (extract(epoch from now()) * 1000)::bigint; ip text;
+declare v_doc jsonb; v_hash text; v_key text; v_now bigint := (extract(epoch from now()) * 1000)::bigint; v_ip text;
 begin
   if coalesce(p_owner_hash, '') = '' then raise exception '비밀번호가 비었습니다'; end if;
   select doc into v_doc from public.docs where key = 'shared:issues';
@@ -93,9 +93,9 @@ begin
   end if;
   v_key := encode(extensions.gen_random_bytes(24), 'hex');
   insert into public.devices(key_hash, name, store, last_seen) values (encode(sha256(convert_to(v_key, 'utf8')), 'hex'), left(coalesce(nullif(p_name, ''), '기기'), 40), nullif(p_store, ''), now());
-  ip := public.req_ip();
-  if nullif(p_store, '') is not null and ip is not null then
-    insert into public.store_nets(ip, store, name, last_seen) values (ip, p_store, left(coalesce(nullif(p_name, ''), '기기'), 40) || ' 등록', now())
+  v_ip := public.req_ip();
+  if nullif(p_store, '') is not null and v_ip is not null then
+    insert into public.store_nets(ip, store, name, last_seen) values (v_ip, p_store, left(coalesce(nullif(p_name, ''), '기기'), 40) || ' 등록', now())
       on conflict (ip) do update set last_seen = now(), store = excluded.store, active = true;
   end if;
   return v_key;

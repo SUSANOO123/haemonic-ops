@@ -1501,3 +1501,21 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .tkLot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-size:14px}
 .tkLotMain{min-width:0;flex:1 1 180px}
 .tkLotBtns{display:flex;gap:4px;flex-wrap:wrap}
+
+/* ═══ 간단히 보기 (기본) — 설명 문구·보조 글귀·범례 숨김. '자세히' 버튼으로 켠다 (2026-10-11) ═══ */
+.onlyMin{display:none}
+body.minimal .onlyMin{display:inline-flex;margin:0 0 12px}
+body.minimal #main .hint:not(.keep),body.minimal #modal .hint:not(.keep),body.minimal #main .sub:not(.keep),body.minimal #main .dLegend,body.minimal #main .tkHint,body.minimal #main .tkEmptyLog,body.minimal #main .rpolicy,body.minimal #main .rnote{display:none}
+body.minimal #main .tcRole,body.minimal #main .repBadge.daily,body.minimal #main .crewMore,body.minimal #main .tcMeta:not(:has(span:not(.tcRole))){display:none}
+body.minimal #main .tcMemo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+body.minimal #main .guide{display:none}
+body.minimal #main .orderBar:not(.on){display:none}   /* 순서 바꾸기는 '자세히'에서 */
+body.minimal #main .fbTpl{display:none}
+body.minimal #main .hd{margin:2px 0 8px}
+body.minimal #main .card{padding:12px 14px}
+body.minimal #main .notice{padding:10px 12px;margin:8px 0}
+body.minimal #main .slotTabs{margin:8px 0 8px}
+body.minimal .demoBar{padding:6px 10px}
+.uiBtn{margin-left:6px;font-size:12px;padding:4px 9px;min-height:30px;color:var(--muted)}
+#who .uiBtn{margin-left:8px}
+.sfoot .uiBtn{width:auto;margin:0 0 6px}

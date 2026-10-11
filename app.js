@@ -898,6 +898,7 @@ const App = (() => {
     </div>
     ${cur ? `<div class="notice pin"><b>지금은 ${cur.n} 테스트 기간입니다 (${mdShort(cur.from)}~${mdShort(cur.to)}).</b> 이번 회차에서 보는 것: ${esc(cur.focus)}</div>` : ''}
     ${fbNotice()}
+    <button class="btn sm ghost onlyMin" data-act="uiDetail">📖 자세한 안내 보기</button>
     <div class="guide">
       <p class="lead"><b>목적은 하나.</b> 쓰기 불편한 것과 잘못 움직이는 것을 찾아서 고치는 것. 잘하고 못하고를 보는 자리가 아닙니다.</p>
 
@@ -970,7 +971,7 @@ const App = (() => {
     return `<div class="hd"><div><h2>🔐 기기 등록</h2><div class="sub">해모닉 업무 체크리스트는 사장님이 등록한 기기에서만 매장 기록을 보여 줍니다.</div></div></div>
       <div class="lockBox regBox">
         <div class="lockIc">${revoked ? '⛔' : '🔐'}</div>
-        <p>${revoked ? '<b>이 기기의 등록이 해제되었습니다.</b><br><span class="mut">다시 쓰려면 사장님이 아래에서 다시 등록해 주세요.</span>' : '<b>이 기기는 아직 등록되지 않았습니다.</b><br><span class="mut">매장 아이패드·사장님 폰처럼 매장에서 쓰는 기기만 사장님이 직접 등록합니다. 직원 개인 폰은 등록하지 않습니다.</span>'}</p>
+        <p>${revoked ? '<b>이 기기의 등록이 해제되었습니다.</b><br><span class="mut">사장님이 아래에서 다시 등록해 주세요.</span>' : '<b>등록되지 않은 기기입니다.</b><br><span class="mut">사장님이 매장에서 한 번 등록하면 그 매장 인터넷에서는 다시 묻지 않습니다.</span>'}</p>
         <div class="regForm">
           <label>기기 이름<input id="rgName" placeholder="예: ${esc(st.name || '안산점')} 아이패드 · 사장님 폰" autocomplete="off"></label>
           <label>매장<select id="rgStore">${(Store.meta ? Store.meta.stores : []).map((x) => `<option value="${x.id}"${x.id === (Store.meta || {}).current ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="">공용 (사장님 기기)</option></select></label>
@@ -1072,9 +1073,13 @@ const App = (() => {
     return (m.stores.find((x) => x.id === m.current) || {}).name || '';
   };
 
+  /* 간단히 보기(기본) — 설명 문구·보조 글귀·범례를 숨긴다. 기기마다 기억. 사장님 요청 2026-10-11: 글자가 너무 많다 */
+  const uiDetail = () => { try { return localStorage.getItem('hm.uiDetail') === '1'; } catch (_) { return false; } };
+  const uiBtn = () => `<button class="btn sm ghost uiBtn" data-act="uiDetail" title="${uiDetail() ? '설명 문구를 숨깁니다' : '설명 문구를 모두 보여 줍니다'}">${uiDetail() ? '간단히' : '자세히'}</button>`;
   function render() {
+    document.body.classList.toggle('minimal', !uiDetail());
     const who = S.ui.whoDate === dateKey() ? S.ui.who : null;
-    const whoBtn = S.settings.askWho ? '<div class="hint" style="margin:0">완료할 때마다 이름을 고릅니다</div>' : `<button class="whoBtn" data-act="pickWho">${who ? esc(who) : '지금 누구세요?'}</button>`;
+    const whoBtn = S.settings.askWho ? uiBtn() : `<button class="whoBtn" data-act="pickWho">${who ? esc(who) : '지금 누구세요?'}</button>${uiBtn()}`;
 
     const mt = Store.meta;
     const storeBtns = mt ? mt.stores.map((st) =>
@@ -1089,7 +1094,7 @@ const App = (() => {
     $('#side').innerHTML = `<div class="slogo">🦀 해모닉<small>업무 체크리스트</small><button class="sideX" data-act="sideClose" aria-label="메뉴 닫기">✕</button></div>
       <div class="sstore">${storeBtns}</div>
       <nav class="smenu">${sideMenu()}</nav>
-      <div class="sfoot"><div class="sfl">지금 사용 중</div>${whoBtn}${ownerOn() ? '<button class="btn sm ghost ownerBtn" data-act="ownerLock">👑 사장님 모드 · 잠그기</button>' : ''}</div>`;
+      <div class="sfoot">${whoBtn}${ownerOn() ? '<button class="btn sm ghost ownerBtn" data-act="ownerLock">👑 잠그기</button>' : ''}</div>`;
 
     $('#nav').innerHTML = topNav();
     $('#who').innerHTML = whoBtn;
@@ -1227,8 +1232,8 @@ const App = (() => {
     const curSlot = (SLOTS.slice().reverse().find((s2) => now >= minutesOf(s2.from)) || SLOTS[0]).key;
     const openIssues = issuesAll().filter((x) => x.status !== 'done').sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0));
     const d = new Date(tk + 'T00:00:00');
-    let h = `<div class="hd"><div><h2>대시보드</h2><div class="sub">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일 · 지금 ${pad(Math.floor(now / 60))}:${pad(now % 60)} 기준 · 안산점과 안양점을 나란히 봅니다. 다른 매장은 서버에 저장된 최신 기록입니다.</div></div>
-      <button class="btn sm" data-act="dashRefresh">새로고침</button></div>`;
+    let h = `<div class="hd"><div><h2>대시보드</h2><div class="sub keep">${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]}) ${pad(Math.floor(now / 60))}:${pad(now % 60)}</div></div>
+      <button class="btn sm" data-act="dashRefresh" style="margin-left:auto">새로고침</button></div>`;
 
     /* 0. 매장 점수판 — 원형 게이지 + 급한 업무는 숫자로만 (사장님 요청 2026-10-06: 위쪽 목록 없애고 매장별 숫자) */
     const noLogin0 = !(Store.supa && Store.supa.signedIn);
@@ -1267,7 +1272,7 @@ const App = (() => {
     /* 2. 최근 7일 완료율 */
     h += sec('📈', '최근 7일 완료율', 'report', two((sn) => `
       <div class="dtrend">${sn.trend.map((x) => `<div class="dtb" title="${x.k} · ${x.v == null ? '기록 없음' : x.v + '%'}"><i style="height:${x.v == null ? 2 : Math.max(3, x.v)}%" class="${x.v == null ? 'none' : x.v >= 90 ? 'good' : x.v >= 70 ? 'mid' : 'low'}"></i><span>${x.k.slice(8)}</span></div>`).join('')}</div>
-      <div class="mut" style="font-size:12px">초록 90% 이상 · 노랑 70~89% · 빨강 70% 미만 · 회색 기록 없음</div>`));
+      <div class="mut dLegend" style="font-size:12px">초록 90% 이상 · 노랑 70~89% · 빨강 70% 미만 · 회색 기록 없음</div>`));
 
     /* 3. 수조·갑각류 */
     h += sec('🦀', '수조 · 폐사', 'tanks', two((sn) => `
@@ -1489,7 +1494,7 @@ const App = (() => {
         ${r.date ? `<div class="tkDate">${md(r.date)}</div>${ageBadge(r.date, cy.every, cy.late)}
           <div class="tkSub">${over > 0 ? `예정 ${md(due)} — ${over}일 지남` : `다음 예정 ${md(due)}`}</div>
           ${r.by ? `<div class="tkSub">${esc(r.by)}</div>` : ''}`
-          : `<div class="tkEmpty">기록 없음</div><div class="tkSub">눌러서 기록</div>`}
+          : `<div class="tkEmpty">기록 없음</div><div class="tkSub tkHint">눌러서 기록</div>`}
       </button></td>`;
     };
     const stockCell = (it, pos) => {
@@ -1504,7 +1509,7 @@ const App = (() => {
              <div class="tkKg">합 ${qty}미${kg ? ` · ${fmtKg(kg)}` : ''}</div>`}
           <div class="tkSub">폐사 ${dead}${lots.length > 1 ? ` · ${lots.length}묶음` : (lots[0].by ? ` · ${esc(lots[0].by)}` : '')}</div>
           ${anyFirst ? '<div class="tkFirst">먼저 사용 ①</div>' : ''}`
-          : `<div class="tkEmpty">비어 있음</div><div class="tkSub">눌러서 입고</div>`}
+          : `<div class="tkEmpty">비어 있음</div><div class="tkSub tkHint">눌러서 입고</div>`}
       </button></td>`;
     };
     const row = (label, sub, cells) => `<tr><th><div class="tkLabel">${label}</div>${sub ? `<div class="tkSub">${sub}</div>` : ''}</th>${cells}</tr>`;
@@ -1861,7 +1866,7 @@ const App = (() => {
     if (crew === 2 && filter === '홀') filter = 'all';
     h += `<div class="filters">
       ${['all', ...roleBtns].map((r) => `<button class="fl${filter === r ? ' on' : ''}" data-act="filter" data-r="${r}">${r === 'all' ? '전체' : r}</button>`).join('')}
-      <button class="crewTag" data-act="view" data-v="month" title="근무표의 오전·오후 조 인원에 따라 시간대별로 정해집니다">${crew}인 기준${split ? ` (${slot.key === 'open' ? '오전' : '오후'} 조 ${(slot.key === 'open' ? split.am : split.pm).length}명)` : ''}${crew === 2 ? ' · 홀 업무는 관리자가, 일부는 주방이' : ''}</button>
+      <button class="crewTag" data-act="view" data-v="month" title="근무표의 오전·오후 조 인원에 따라 시간대별로 정해집니다 — ${crew}인 기준${split ? ` (${slot.key === 'open' ? '오전 조' : '오후 조'} ${(slot.key === 'open' ? split.am : split.pm).length}명)` : ''}">👥 ${crew}인<span class="crewMore">${split ? ` (${slot.key === 'open' ? '오전' : '오후'} 조 ${(slot.key === 'open' ? split.am : split.pm).length}명)` : ''}${crew === 2 ? ' · 홀 업무는 관리자가, 일부는 주방이' : ''}</span></button>
     </div>`;
 
     /* 중요 지연 — 오늘일 때만, 어느 시간대든 위로 올린다 */
@@ -1908,9 +1913,9 @@ const App = (() => {
     const unlocked = orderUnlocked();
     const hasCustom = S.templates.some((t) => t.ord != null);
     h += `<div class="orderBar${unlocked ? ' on' : ''}">${unlocked
-      ? `<span>🔓 <b>순서 편집 중</b> — 손잡이(⠿)를 끌어 순서를 바꾸세요. 다른 시각 묶음에 놓으면 그 시각으로 바뀝니다. 모든 기기·매일 그대로 갑니다.</span>
+      ? `<span>🔓 <b>순서 편집 중</b> — ⠿를 끌어 옮기세요</span>
          <span class="obBtns">${hasCustom ? `<button class="btn sm" data-act="orderReset">시간순으로 되돌리기</button>` : ''}<button class="btn sm primary" data-act="orderLock">잠그기</button></span>`
-      : `<span class="hint">🔒 순서 잠김${hasCustom ? ' · 사장님이 정한 순서' : ' · 시각순'}</span><button class="btn sm" data-act="orderUnlock">순서 바꾸기</button>`}</div>`;
+      : `<span class="hint">🔒 순서 잠김${hasCustom ? ' · 사장님이 정한 순서' : ' · 시각순'}</span><button class="btn sm ghost" data-act="orderUnlock">순서 바꾸기</button>`}</div>`;
 
     h += `<div class="splitCols">
       <section class="colBox todoCol">
@@ -1976,12 +1981,12 @@ const App = (() => {
         ${rec.note ? `<div class="tcNote">📝 ${esc(rec.note)}</div>` : (rec.s === 'done' && !rec.auto && !opt.isFuture ? `<div class="tcNote empty">📝 메모 없음</div>` : '')}
         <div class="tcBody">
           ${t.memo ? `<div class="tcMemo">${esc(t.memo)}</div>` : ''}
-          <div class="tcMeta">담당 ${role}${tplScope(t) !== 'all' ? ` · ${esc(scopeName(tplScope(t)))}만` : ''}${t.support ? ` · 보조 ${t.support}` : ''}${t.deadline ? ` · 마감 ${t.deadline}` : ''}${evLabel ? ` · ${evLabel}` : ''}</div>
+          <div class="tcMeta"><span class="tcRole">담당 ${role}</span>${tplScope(t) !== 'all' ? `<span> · ${esc(scopeName(tplScope(t)))}만</span>` : ''}${t.support ? `<span> · 보조 ${t.support}</span>` : ''}${t.deadline ? `<span> · 마감 ${t.deadline}</span>` : ''}${evLabel ? `<span> · ${evLabel}</span>` : ''}</div>
         </div>
       </button>
       <span class="tcRight">
         ${canDrag ? `<button class="tTime" data-act="cardTime" data-id="${tid}" title="시각 바꾸기">${esc(t.time || '')} ✎</button>` : ''}
-        <span class="repBadge">${repLabel}</span>
+        <span class="repBadge${rep.t === 'weekly' ? '' : ' daily'}">${repLabel}</span>
         ${opt.isFuture || rec.auto ? '' : `<button class="more" data-act="taskNote" data-id="${tid}" title="메모 남기기" aria-label="메모">📝</button>`}
         ${opt.isFuture ? '' : `<button class="more" data-act="menu" data-id="${tid}" aria-label="더보기">⋯</button>`}
       </span>
@@ -5833,6 +5838,7 @@ const App = (() => {
 
       switch (a) {
         case 'demoReset': demoReset(); break;
+        case 'uiDetail': { try { localStorage.setItem('hm.uiDetail', uiDetail() ? '0' : '1'); } catch (_) { /* 무시 */ } render(); break; }
         case 'sideToggle': if (document.body.classList.contains('sideOpen')) sideClose(); else sideOpen(); break;
         case 'sideClose': sideClose(); break;
         case 'view': view = b.dataset.v; if (view !== 'contracts') { cOpen = null; cMode = null; } if (view !== 'dash') dashLiveOff(); render(); window.scrollTo(0, 0); break;

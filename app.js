@@ -3923,6 +3923,7 @@ const App = (() => {
     if (!e.target.closest) return;
     if (e.target.closest('.kgTbl')) syncKgTotals();
     else if (e.target.classList.contains('sfIn')) syncSalesTotals();
+    else if (e.target.dataset && e.target.dataset.act === 'biz') { bizOf()[e.target.dataset.f] = e.target.value; save(); }   // 치는 즉시 상태에 반영 — 화면이 다시 그려져도 글자가 안 지워진다
   });
   /* 입력값 읽기 — 음수·글자는 붉게 표시하고 null 반환(저장 안 함) */
   function readSalesFields() {
@@ -6748,17 +6749,21 @@ const App = (() => {
     window.addEventListener('pagehide', () => Store.flush());
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Store.flush(); });
     // 다른 기기(휴대폰·매장 PC)에서 바뀐 게 도착하면 지금 보는 매장 것일 때만 갈아끼운다
+    /* 글자를 치는 중이면 화면을 다시 그리지 않는다 — 설정 화면에서 입력하던 글자가 다른 기기 저장이 도착할 때 지워지던 문제 (사장님 신고 2026-10-11).
+       보류된 서버 변경은 다음 저장 때 합쳐지거나 60초 확인 때 다시 받는다. */
+    const typing = () => { const a = document.activeElement; return !!(a && a.closest && a.closest('#main') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !['checkbox', 'radio', 'button', 'submit'].includes(a.type)); };
     Store.onRemote((k, doc) => {   // false 를 돌려주면 "아직 받아들이지 않음" — 저장소가 서버 최신 표시를 앞당기지 않고, 다음 저장 때 합친다
       if (k === 'shared:issues') { if (doc && Array.isArray(doc.issues)) { SH = doc; if (view === 'issues' && $('#modal').hidden) render(); } return true; }
       if (k !== 'state:' + (Store.meta && Store.meta.current)) return true;
       if (!$('#modal').hidden) return false;      // 입력 중인 창을 날리지 않는다
+      if (typing()) return false;                  // 설정 등에서 글자 치는 중
       if (view === 'contracts' && cMode === 'edit') return false;   // 계약서 작성 중 — 서명이 지워진다
       const ui = S.ui;                       // 시간대 탭·필터·날짜는 이 기기 것 — 다른 기기 저장이 와도 튀지 않게 (사장님 요청 2026-10-08)
       S = doc; S.ui = ui; hydrate(true); render();
       return true;
     });
-    document.addEventListener('cloud-status', () => { if (view === 'today' || view === 'settings') render(); });
-    document.addEventListener('doc-merged', (e) => { if (e.detail && e.detail.key === 'state:' + (Store.meta && Store.meta.current) && $('#modal').hidden) render(); });   // 저장 직전 다른 기기 기록과 합쳐졌으면 화면도 맞춘다
+    document.addEventListener('cloud-status', () => { if ((view === 'today' || view === 'settings') && !typing()) render(); });
+    document.addEventListener('doc-merged', (e) => { if (e.detail && e.detail.key === 'state:' + (Store.meta && Store.meta.current) && $('#modal').hidden && !typing()) render(); });   // 저장 직전 다른 기기 기록과 합쳐졌으면 화면도 맞춘다
     // 쓰다가 저장이 깨지는 경우(용량 초과 등)도 즉시 화면에 드러낸다
     document.addEventListener('storage-broken', () => { view = 'today'; render(); });
   }

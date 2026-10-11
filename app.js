@@ -5640,14 +5640,45 @@ const App = (() => {
       <p class="hint">${rec.s === 'done' ? `${esc(rec.by || '')} ${rec.at || ''} 완료` : '아직 완료 전입니다. 메모만 먼저 남겨 둘 수 있습니다.'}</p>`, () => {
       const v = $('#tnNote').value.trim(); if (v) rec.note = v; else delete rec.note; rec.u = Date.now();
       rec.noteBy = (S.ui.whoDate === dateKey() ? S.ui.who : '') || rec.noteBy || '';
+      journal(key, tid);
       save(); render();
     }, '저장');
+  }
+
+  /* 기기 수첩 — 이 기기가 손댄 할 일 기록(완료·되돌림·건너뜀·메모)을 48시간 동안 이 기기에 적어 둔다.
+     서버에서 받은 기록에서 그 체크가 풀려 있고, 그 뒤에 누가 일부러 바꾼 흔적(u 가 더 나중)이 없으면 되살려 다시 저장한다.
+     "오전에 체크한 게 다 풀림"(안산점 신고 2026-10-10)이 어떤 경로로든 다시 생겨도 이 기기 체크는 살아남게 하는 안전장치. */
+  const JOURNAL_MAX = 300, JOURNAL_MS = 48 * 3600 * 1000;
+  const jKey = () => 'hm.journal:' + ((Store.meta && Store.meta.current) || 'x');
+  const jRead = () => { try { return JSON.parse(localStorage.getItem(jKey()) || '[]'); } catch (_) { return []; } };
+  const jWrite = (list) => { try { localStorage.setItem(jKey(), JSON.stringify(list.slice(-JOURNAL_MAX))); } catch (_) { /* 무시 */ } };
+  function journal(key, tid) {
+    if (DEMO) return;
+    const rec = S.days[key] && S.days[key].inst && S.days[key].inst[tid]; if (!rec || !rec.u) return;
+    const list = jRead().filter((e) => !(e.key === key && e.tid === tid));
+    list.push({ key, tid, u: rec.u, rec: JSON.parse(JSON.stringify(rec)) });
+    jWrite(list);
+  }
+  function reconcileJournal(why) {
+    if (DEMO) return 0;
+    const now = Date.now(), list = jRead().filter((e) => now - e.u < JOURNAL_MS); let fixed = 0; const names = [];
+    list.forEach((e) => {
+      const d = S.days && S.days[e.key]; if (!d || !d.inst) return;
+      const cur = d.inst[e.tid]; if (!cur) return;
+      if (cur.u && cur.u >= e.u) return;                                   // 그 뒤에 누가 일부러 바꾼 것 — 존중
+      if (cur.s === e.rec.s && (cur.note || '') === (e.rec.note || '') && (cur.by || '') === (e.rec.by || '')) return;
+      d.inst[e.tid] = JSON.parse(JSON.stringify(e.rec)); fixed++; const t = tpl(e.tid); if (t && names.length < 3) names.push(t.title);
+    });
+    jWrite(list);
+    if (fixed) { console.warn('[기기 수첩] 풀린 기록 되살림', fixed, why); save(); banner(`이 기기에서 한 체크 ${fixed}건이 풀려 있어 되살렸습니다`, names.join(' · ') + (fixed > 3 ? ' 외' : '')); }
+    return fixed;
   }
 
   function doComplete(tid, extra) {
     const key = viewKey(), rec = S.days[key].inst[tid];
     const d = new Date();
     Object.assign(rec, { s: 'done', by: S.ui.who, at: `${pad(d.getHours())}:${pad(d.getMinutes())}`, u: Date.now() }, extra);   // u: 마지막으로 손댄 시각 — 기기 간 합칠 때 더 나중 것이 이긴다
+    journal(key, tid);
     save(); render();
     instantAlert(tid, key, rec);
   }
@@ -5789,6 +5820,7 @@ const App = (() => {
         else if (v === 'title') { closeModal(); editTitle(tid); return; }
         else if (v.startsWith('role:')) { rec.role = v.slice(5); rec.u = Date.now(); }
         else if (v.startsWith('by:')) { rec.by = v.slice(3); rec.u = Date.now(); }
+        journal(key, tid);
         save(); closeModal(); render(); return;
       }
 
@@ -6010,7 +6042,7 @@ const App = (() => {
         case 'toggle': {
           const rec = S.days[key].inst[id];
           if (rec.s === 'todo') completeTask(id);
-          else { S.days[key].inst[id] = { s: 'todo', role: rec.role, u: Date.now() }; save(); render(); }
+          else { S.days[key].inst[id] = { s: 'todo', role: rec.role, u: Date.now() }; journal(key, id); save(); render(); }
           break;
         }
         case 'menu': taskMenu(id); break;
@@ -6783,6 +6815,7 @@ const App = (() => {
     S = (await Store.load()) || freshState();
     if (DEMO && !(S.demo && S.demo.ver === DEMO_VER && S.demo.day === dateKey())) { S = await demoSeed(); await Store.switchTo('ansan'); S = (await Store.load()) || S; }   // 데모판: 매일 처음 열면 오늘 기준으로 새로 채운다
     hydrate();
+    try { reconcileJournal('start'); } catch (e) { console.warn(e); }
     loadSharedIssues();
     try { loadMarketCache(); } catch (e) {}   // 매입 기록 없는 매장이 다른 매장 단가를 시세 참고로 쓰기 위해
     // 주소 뒤에 ?view=tanks 처럼 붙이면 그 화면으로 바로 연다 — 아이패드 홈 화면 바로가기용
@@ -6825,7 +6858,9 @@ const App = (() => {
       if (typing()) return false;                  // 설정 등에서 글자 치는 중
       if (view === 'contracts' && cMode === 'edit') return false;   // 계약서 작성 중 — 서명이 지워진다
       const ui = S.ui;                       // 시간대 탭·필터·날짜는 이 기기 것 — 다른 기기 저장이 와도 튀지 않게 (사장님 요청 2026-10-08)
-      S = doc; S.ui = ui; hydrate(true); render();
+      S = doc; S.ui = ui; hydrate(true);
+      reconcileJournal('remote');
+      render();
       return true;
     });
     document.addEventListener('cloud-status', () => { if ((view === 'today' || view === 'settings') && !typing()) render(); });

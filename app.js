@@ -6836,10 +6836,29 @@ const App = (() => {
     checkAlarms();
     checkReport();
 
+    /* 새 판 자동 반영 (2026-10-11) — 포스는 앱을 하루 종일 열어 두므로, 고친 것이 올라가도 새로고침 전까지 옛 판으로 돈다.
+       5분마다 index.html 의 app.js 판 번호를 확인해 달라졌으면, 입력 창·글자 입력·끌기 중이 아닐 때 안내 뒤 새로 불러온다. */
+    const myVer = (() => { const sc = [...document.scripts].find((x) => /app\.js\?v=/.test(x.src)); return sc ? (sc.src.match(/v=([0-9a-z]+)/) || [])[1] : ''; })();
+    let newVer = '', lastVerCheck = 0;
+    const checkVersion = async () => {
+      if (!myVer || !/^https?:/.test(location.protocol)) return;
+      lastVerCheck = Date.now();
+      try { const html = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(); const m = html.match(/app\.js\?v=([0-9a-z]+)/); if (m && m[1] !== myVer) newVer = m[1]; } catch (_) { /* 오프라인 등 — 다음에 */ }
+    };
+    const applyVersion = () => {
+      if (!newVer || !$('#modal').hidden || typing() || dragSt) return;
+      banner('새 판으로 바뀝니다', '잠시 뒤 화면을 새로 불러옵니다. 하던 입력은 저장돼 있습니다.');
+      Store.flush().finally(() => setTimeout(() => location.reload(), 2500));
+      newVer = '';
+    };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastVerCheck > 60 * 1000) checkVersion().then(applyVersion); });
+    setTimeout(checkVersion, 90 * 1000);
+
     let lastKey = dateKey(), lastSig = null, tickN = 0;
     tickTimer = setInterval(() => {
       const k = dateKey();
       if (++tickN % 40 === 0) Store.deviceTouch();   // 20분마다 — 켜 둔 포스가 매장 인터넷 주소를 서버에 남긴다
+      if (tickN % 10 === 0) checkVersion().then(applyVersion); else if (newVer) applyVersion();   // 5분마다 판 확인, 바뀌었으면 조용한 때 새로 불러오기
       if (k !== lastKey) { lastKey = k; S.ui.date = k; S.ui.filter = 'all'; S.ui.slot = null; backfill(); save(); render(); }   // 자정 롤오버
       checkAlarms();
       // 지연 표시가 실제로 바뀔 때만 다시 그린다.

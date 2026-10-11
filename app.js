@@ -6691,7 +6691,7 @@ const App = (() => {
   /* ── 데모판 (10/14 공유회용, 2026-10-09) ─────────────────────────
      demo.js 가 window.HM_DEMO 를 켜면: 서버 없음 · 저장소 따로 · 매일 처음 열 때 가짜 두 매장 자료를 오늘 날짜 기준으로 새로 만든다.
      실제 직원·매출과 무관한 숫자만 쓴다. 사장님 비밀번호 1234. */
-  const DEMO = !!window.HM_DEMO, DEMO_VER = 2, DEMO_PW = '1234';
+  const DEMO = !!window.HM_DEMO, DEMO_VER = 3, DEMO_PW = '1234';   // DEMO_VER 3 (10/11): 수조 묶음·보건증·포장 kg·단 단위·퀴즈·사업장 정보 샘플
   function demoRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   const DEMO_STAFF = {
     ansan: [
@@ -6759,7 +6759,9 @@ const App = (() => {
         const deliv = Math.round(tot * (0.18 + R() * 0.1) / 100) * 100, take = Math.round(tot * (0.04 + R() * 0.04) / 100) * 100, store = tot - deliv - take;
         const oS = Math.round(store / 98000), oD = Math.round(deliv / 72000);
         const crab = Math.round(tot / 95000 * 10) / 10, king = Math.round(tot / 210000 * 10) / 10, lob = Math.round(R() * 3 * 10) / 10;
-        S.sales[k] = { orders: oS + oD, ordersS: oS, ordersD: oD, store, deliv, take, total: tot, liquor: Math.round(store * 0.16 / 100) * 100, crab, king, lob, by: '데모', at: k + ' 21:40', src: 'demo' };
+        const sp = (v) => { const d1 = Math.round(v * 0.14 * 10) / 10, p1 = Math.round(v * 0.06 * 10) / 10; return [Math.round((v - d1 - p1) * 10) / 10, d1, p1]; };   // 매장 · 배달 · 포장 kg
+        const [crabS, crabD, crabP] = sp(crab), [kingS, kingD, kingP] = sp(king);
+        S.sales[k] = { orders: oS + oD, ordersS: oS, ordersD: oD, store, deliv, take, total: tot, liquor: Math.round(store * 0.16 / 100) * 100, crab, king, lob, crabS, crabD, crabP, kingS, kingD, kingP, lobS: lob, lobD: 0, lobP: 0, by: '데모', at: k + ' 21:40', src: 'demo' };
         const d = S.days[k]; const mt = S.templates.find((x) => x.ev === 'money'); if (d && mt && d.inst[mt.id] && d.inst[mt.id].s === 'done') d.inst[mt.id].ev = tot;
       }
       // 매입 — 갑각류(2~3일마다) + 식자재
@@ -6771,6 +6773,7 @@ const App = (() => {
           S.purchases.push({ id: newId('p'), date: k, cat: '대게', name: '대게(러시아)', qty: kg, unit: 'kg', amount: Math.round(kg * unit / 100) * 100, vendor: '데모수산', memo: '', by: '데모', createdAt: Date.now(), src: 'demo' });
           if (R() < 0.6) { const kk = Math.round((st === 'ansan' ? 7 : 4.5) * (0.8 + R() * 0.4) * 10) / 10, ku = 118000 + Math.round(R() * 14000); S.purchases.push({ id: newId('p'), date: k, cat: '킹크랩', name: '킹크랩', qty: kk, unit: 'kg', amount: Math.round(kk * ku / 100) * 100, vendor: '데모수산', memo: '', by: '데모', createdAt: Date.now(), src: 'demo' }); }
         }
+        if (i % 3 === 0) S.purchases.push({ id: newId('p'), date: k, cat: '식자재', name: '대파', qty: 2 + Math.floor(R() * 3), unit: '단', amount: (2 + Math.floor(R() * 3)) * 3500, vendor: '데모상회', memo: '', by: pick(S.staff).name, createdAt: Date.now(), src: 'demo' });   // 야채는 '단' 단위
         if (i % 2 === 1) { const f = pick(DEMO_FOOD); S.purchases.push({ id: newId('p'), date: k, cat: f[0], name: f[1], qty: null, unit: 'kg', amount: Math.round(f[2] * 1.6 * (0.85 + R() * 0.3) / 100) * 100, vendor: '데모상회', memo: '', by: pick(S.staff).name, createdAt: Date.now(), src: 'demo' }); }
       }
       // 수조
@@ -6779,8 +6782,27 @@ const App = (() => {
         const w = shift(today, -(2 + n * 2)), c = shift(today, -(8 + n * 7));
         T.items.push({ n, water: { date: w, by: S.staff[0].name }, clean: { date: c, by: S.staff[0].name } });
         T.care.push({ id: 'cw' + n, date: w, n, kind: 'water', by: S.staff[0].name }, { id: 'cc' + n, date: c, n, kind: 'clean', by: S.staff[0].name });
-        T.log.push({ id: 'l' + n, date: shift(today, -n), n, pos: 'top', species: n % 2 ? '대게' : '킹크랩', qty: 10 + n * 3, kg: Math.round((12 + n * 4) * 10) / 10, dead: 0, by: S.staff[0].name });
       }
+      const lotSets = {   // [수조번호-칸]: 묶음들 — 한 칸에 여러 품목(레드·브라운)도 같이 기록된다
+        '1-top': [['대게', '러시아', 14, 18.2, 2], ['대게', '국내산', 6, 7.1, 1]],
+        '1-bottom': [['대게', '러시아', 9, 11.6, 3]],
+        '2-top': [['킹크랩', '레드', 5, 12.4, 2], ['킹크랩', '브라운', 4, 8.9, 1]],
+        '2-bottom': [['랍스터', '', 12, 7.2, 4]],
+        '3-top': [['대게', '러시아', 11, 14.3, 1]],
+        '4-top': [['킹크랩', '레드', 3, 7.8, 5]],
+      };
+      const lotRows = [];
+      Object.entries(lotSets).forEach(([key, arr]) => {
+        const [n, pos] = key.split('-'); const it = T.items[Number(n) - 1];
+        if (!it[pos]) it[pos] = { lots: [] };
+        arr.forEach(([species, label, qty, kg, ago], j) => {
+          const l = { id: `lt${n}${pos}${j}`, species, label, qty, kg, date: shift(today, -ago), dead: 0, by: S.staff[0].name };
+          it[pos].lots.push(l); lotRows.push([Number(n), pos, l]);
+        });
+      });
+      lotRows.sort((a, b) => a[2].date.localeCompare(b[2].date)).forEach(([n, pos, l]) => T.log.push({ id: 'lg' + l.id, date: l.date, n, pos, kind: 'in', species: l.species, label: l.label, qty: l.qty, kg: l.kg, dead: 0, by: l.by, at: '11:20', note: '' }));
+      T.log.push({ id: 'lgout1', date: shift(today, -1), n: 3, pos: 'bottom', kind: 'out', species: '대게', label: '러시아', qty: 8, kg: 10.4, dead: 0, by: S.staff[0].name, at: '18:40', note: '주말 판매분 소진' });
+      T.log.push({ id: 'lgmv1', date: today, n: 4, pos: 'bottom', kind: 'move', species: '킹크랩', label: '레드', qty: 3, kg: 7.8, dead: 0, by: S.staff[0].name, at: '10:05', note: '4번 하단 → 4번 상단 (수온 안정 칸으로)' });
       S.tanks = T;
       S.deaths = [{ id: 'dd1', date: shift(today, -1), sp: '대게', n: 2, tank: '2', note: '활력 저하 후 폐사', by: S.staff[0].name, at: shift(today, -1) + ' 16:05' }];
       S.deadUse = {};
@@ -6791,9 +6813,15 @@ const App = (() => {
         { id: 'n1', month: mon, title: '이번 달 목표 — 할 일 완료율 95%', body: '중요 표시 업무는 시간대 시작할 때 먼저 끝냅니다.', pin: true, by: S.staff[0].name, createdAt: Date.now() - 864e5 * 6 },
         { id: 'n2', month: mon, title: '주말 단체 예약 많음 — 룸 세팅 30분 일찍', body: '금·토 17:00 전까지 룸 세팅 완료', pin: false, by: S.staff[0].name, createdAt: Date.now() - 864e5 * 2 },
       ];
+      // 보건증 — 직원마다 하나(h:직원번호). 한 명은 곧 만료, 한 명은 미등록
+      const hIssued = [-320, -40, -350, -120, -200];
+      S.health = S.staff.map((x, idx) => ({ id: 'h:' + x.id, staffId: x.id, name: x.name, issued: idx === 3 ? '' : shift(today, hIssued[idx] || -90), memo: idx === 0 ? (st === 'ansan' ? '상록수보건소' : '동안구보건소') : idx === 2 ? '만료 전 재발급 예약함' : '' }));
+      S.hygiene = { owner: { done: shift(today, -210), every: 12, org: '한국외식업중앙회', memo: '온라인 보수교육' }, staff: { d2: { done: shift(today, -100), memo: '' }, d3: { done: shift(today, -330), memo: '다음 달 재교육' } } };
+      S.settings.biz = { name: '해모닉 ' + (st === 'ansan' ? '안산점' : '안양점'), rep: '김데모', reg: '000-00-00000', addr: st === 'ansan' ? '경기 안산시 상록구 데모로 12' : '경기 안양시 동안구 데모대로 34', phone: st === 'ansan' ? '031-000-0001' : '031-000-0002' };
       seedTraining(true);
       const urls = (S.training || []).map((x) => x.url).filter(Boolean);
-      S.trainDone = {}; S.staff.forEach((x, idx) => { S.trainDone[x.name] = {}; urls.slice(0, Math.max(2, 9 - idx * 2)).forEach((u, j) => { S.trainDone[x.name][u] = shift(today, -(j + 1)); }); });
+      S.trainDone = {}; S.trainQuiz = {};
+      S.staff.forEach((x, idx) => { S.trainDone[x.name] = {}; S.trainQuiz[x.name] = {}; urls.slice(0, Math.max(2, 9 - idx * 2)).forEach((u, j) => { S.trainDone[x.name][u] = shift(today, -(j + 1)); if (quizOf(u)) S.trainQuiz[x.name][u] = { tries: j % 3 === 0 ? 2 : 1, at: shift(today, -(j + 1)) }; }); });
       S.missions = S.staff.slice(1, 4).map((x, j) => ({ id: 'ms' + j, who: x.name, text: ['손님 오시면 3초 안에 인사하기', '퇴근 전 작업대 물기까지 닦기', '대게 손질 순서 외워서 혼자 해 보기'][j] || '오늘 배운 것 적용하기', cat: '서비스', month: mon, createdAt: Date.now() - 864e5 * (j + 1), status: ['done', 'claimed', 'open'][j] || 'open', doneAt: j === 0 ? Date.now() - 864e5 : undefined }));
       docs[st] = S;
     }
@@ -6804,6 +6832,9 @@ const App = (() => {
       { id: 'i1', cat: '앱 오류', title: '할 일 체크가 가끔 풀림', body: '📍 어느 화면 : 업무 › 할 일 › 미들\n👆 무엇을 눌렀나 : 갑각류 중간체크 완료\n❗ 어떻게 됐나 : 체크됐다가 2초 뒤 풀림\n✅ 이렇게 되면 좋겠다 : 한 번 누르면 그대로\n📱 기기 : 매장 아이패드\n🔁 다시 해도 같은가 : 가끔', status: 'done', replies: [{ text: '다른 기기 저장이 올 때 화면이 초기화되던 문제 — 고쳤습니다', by: '사장님', at: t0 - 864e5, fix: true }], by: '박서준', anon: false, createdAt: t0 - 864e5 * 2, store: '안산점', updatedAt: t0 - 864e5 },
       { id: 'i2', cat: '앱 건의', title: '근무표에 내 이름 눌러서 넣기', body: '📍 어느 화면 : 인사관리 › 월간 근무표\n❗ 어떻게 됐나 : 이름을 매번 타자로 침\n✅ 이렇게 되면 좋겠다 : 직원 명단에서 눌러서 넣기', status: 'done', replies: [{ text: '직원 칩으로 바꿨습니다', by: '사장님', at: t0 - 864e5 * 3, fix: true }], by: '', anon: true, team: true, createdAt: t0 - 864e5 * 4, store: '안양점', updatedAt: t0 - 864e5 * 3 },
       { id: 'i3', cat: '앱 오류', title: '폐사 기록 후 3일 표시가 안 보임', body: '📍 어느 화면 : 업무 › 수조 관리표\n❗ 어떻게 됐나 : 폐사 적었는데 사용 기한 표시 없음\n📱 기기 : 매장 포스', status: 'open', replies: [], by: '오세린', anon: false, createdAt: t0 - 3600e3 * 5, store: '안양점', updatedAt: t0 - 3600e3 * 5 },
+      { id: 'i5', cat: '수조·상품', title: '2번 수조 킹크랩 레드·브라운 같이 들어옴', body: '한 칸에 두 종류라 따로 적고 싶음. 오늘 입고 레드 5미 · 브라운 4미', status: 'done', replies: [{ text: '수조 칸마다 묶음을 여러 개 넣을 수 있게 바꿨습니다. 입고 추가로 따로 적어 주세요', by: '사장님', at: t0 - 3600e3 * 20, fix: true }], by: '한지우', anon: false, createdAt: t0 - 864e5 - 3600e3 * 2, store: '안양점', updatedAt: t0 - 3600e3 * 20 },
+      { id: 'i6', cat: '앱 오류', title: '보건증 메모 적으면 사라짐', body: '📍 어느 화면 : 업무 › 보건증 관리\n👆 무엇을 눌렀나 : 메모 칸에 보건소 이름 입력\n❗ 어떻게 됐나 : 날짜 넣으니 메모가 지워짐\n📱 기기 : 매장 포스', status: 'done', replies: [{ text: '기기마다 기록이 따로 생겨 합쳐질 때 빈 쪽이 보이던 문제 — 직원당 하나로 합치고 메모는 즉시 저장되게 고쳤습니다', by: '사장님', at: t0 - 3600e3 * 6, fix: true }], by: '최유나', anon: false, createdAt: t0 - 3600e3 * 9, store: '안산점', updatedAt: t0 - 3600e3 * 6 },
+      { id: 'i7', cat: '앱 건의', title: '매입 단위에 "단" 추가', body: '📍 어느 화면 : 운영 › 원가 관리 › 매입 입력\n✅ 이렇게 되면 좋겠다 : 파 두 단처럼 단 단위로 적고 싶음', status: 'done', replies: [{ text: '단위 목록에 단을 넣었습니다', by: '사장님', at: t0 - 864e5 * 2, fix: true }], by: '', anon: true, team: true, createdAt: t0 - 864e5 * 2 - 3600e3, store: '안산점', updatedAt: t0 - 864e5 * 2 },
       { id: 'i4', cat: '시설·장비', title: '2번 수조 산소발생기 소리 큼', body: '어제부터 덜덜거림. 업체 점검 필요해 보임', status: 'open', replies: [{ text: '내일 오전 업체 방문 예정', by: '김하늘', at: t0 - 3600e3 * 2 }], by: '이도윤', anon: false, createdAt: t0 - 864e5, store: '안산점', updatedAt: t0 - 3600e3 * 2 },
     ] };
     await Store.saveShared('issues', SH);

@@ -320,12 +320,15 @@ const Store = (() => {
       if (!(savedAt > (lastUp[k] || 0))) return;
       clearTimeout(timer);
       timer = setTimeout(async () => {
-        if (pending && k === curKey) return;   // 내 쪽에 아직 안 올라간 변경이 있으면 그게 곧 이긴다
+        if (pending && k === curKey) return;   // 내 쪽에 아직 안 올라간 변경이 있으면 저장 때 합쳐진다
         const doc = await cloudGet(k, null);
         if (!doc || !(doc.savedAt > (lastUp[k] || 0))) return;
+        /* 앱이 실제로 받아들였을 때만 "서버 최신본을 봤다"고 기록한다. 입력 창이 열려 있어 받아들이지 못했는데
+           기록만 앞당기면, 그 뒤 저장 때 합칠 필요가 없다고 보고 덮어써 버린다 (2026-10-11 두 매장 실제 시험에서 발견) */
+        const applied = remoteCb ? remoteCb(k, doc) !== false : true;
+        if (!applied) return;
         lastUp[k] = doc.savedAt;
         await localPut(k, doc);
-        if (remoteCb) remoteCb(k, doc);
       }, 300);
     };
     const ch = supa.client.channel('doc-' + k.replace(/[^a-zA-Z0-9]/g, '_'))
@@ -355,12 +358,13 @@ const Store = (() => {
       if (!(savedAt > (lastUp[k] || 0))) return;
       clearTimeout(timer);
       timer = setTimeout(async () => {
-        if (pending) return;                 // 내 쪽에 아직 안 올라간 변경이 있으면 그게 곧 이긴다
+        if (pending) return;                 // 내 쪽에 아직 안 올라간 변경이 있으면 저장 때 합쳐진다
         const doc = await cloudGet(k, ((await localGet(k)) || {}).blobs);
         if (!doc || !(doc.savedAt > (lastUp[k] || 0))) return;
+        const applied = remoteCb ? remoteCb(k, doc) !== false : true;
+        if (!applied) return;
         lastUp[k] = doc.savedAt;
         await localPut(k, doc);
-        if (remoteCb) remoteCb(k, doc);
       }, 400);
     };
     const onErr = (e) => cloudFail(e);

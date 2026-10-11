@@ -8,7 +8,7 @@ window.HM_DEMO = true;
 
 window.HM_DEMO_CFG = {
   pw: '1234',
-  days: { tasks: 42, sales: 56, purchases: 56, crabHistory: 420, rosterBack: 42, rosterAhead: 14 },   // 갑각류 매입만 14개월 — 명절 앞 단가 패턴(매입 인사이트)용   // 오늘 기준 지난 6주 + 앞으로 2주 근무표
+  days: { tasks: 42, sales: 420, purchases: 56, crabHistory: 420, rosterBack: 42, rosterAhead: 14 },   // 매출·갑각류 매입은 14개월 — 명절 앞 단가 패턴·필요량(매입 인사이트)용. 할 일·식자재는 6~8주   // 오늘 기준 지난 6주 + 앞으로 2주 근무표
   staff: {   // 가상 이름 — 실제 직원 이름과 겹치지 않게 확인함(10/11)
     ansan: [
       { id: 'd1', name: '김하늘', roles: ['갑각류 관리자'], pay: { type: 'month', amount: 3200000 }, pattern: '오전·마감 (주 6일)' },
@@ -169,7 +169,8 @@ window.HM_DEMO_SEED = async function (api) {
     for (let i = C.days.crabHistory; i >= 0; i--) {
       const k = shift(today, -i);
       if (i > C.days.purchases) {   // 오래된 기간은 갑각류만, 명절 2주 전은 단가 10~15% 높게
-        if (i % 4 === 0) { const nearEv = C.sales.holidays.some((hd) => { const ev = hd.length === 5 ? k.slice(0, 4) + '-' + hd : hd; const dd = (new Date(ev + 'T00:00:00') - new Date(k + 'T00:00:00')) / 864e5; return dd >= 0 && dd <= 14; }); const kg = Math.round(PC.crabKg[st] * (0.8 + R() * 0.4) * 10) / 10, unit = Math.round((PC.crabUnit[0] - 6000 + R() * 9000) * (nearEv ? 1.12 : 1) + (C.days.crabHistory - i) * 12); row({ date: k, cat: '대게', name: '대게(러시아)', qty: kg, unit: 'kg', amount: Math.round(kg * unit / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
+        const nearEv0 = i % 4 === 0; if (nearEv0) { const nearEv = C.sales.holidays.some((hd) => { const ev = hd.length === 5 ? k.slice(0, 4) + '-' + hd : hd; const dd = (new Date(ev + 'T00:00:00') - new Date(k + 'T00:00:00')) / 864e5; return dd >= 0 && dd <= 14; }); const kg = Math.round(PC.crabKg[st] * (0.8 + R() * 0.4) * 10) / 10, unit = Math.round((PC.crabUnit[0] - 6000 + R() * 9000) * (nearEv ? 1.12 : 1) + (C.days.crabHistory - i) * 12); row({ date: k, cat: '대게', name: '대게(러시아)', qty: kg, unit: 'kg', amount: Math.round(kg * unit / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
+        if (i % 8 === 2) { const kk = Math.round(PC.kingKg[st] * (0.8 + R() * 0.4) * 10) / 10, ku = PC.kingUnit[0] - 8000 + Math.round(R() * 16000); row({ date: k, cat: '킹크랩', name: '킹크랩', qty: kk, unit: 'kg', amount: Math.round(kk * ku / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
         continue;
       }
       if (i % PC.crabEvery[st] === 0) {

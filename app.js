@@ -1350,8 +1350,17 @@ const App = (() => {
         if (c && c.species) T.log.push({ id: 'l' + Date.now() + pos + it.n, date: c.date || dateKey(), n: it.n, pos, species: c.species, qty: c.qty || 0, kg: c.kg, dead: c.dead || 0, by: '' });
       }));
     }
+    /* 2026-10-11 안양점 신고: 한 칸에 품목 하나만 기록돼 입고하면 기존 기록이 덮이고, 대게·킹크랩(레드·브라운)이 섞이면 같이 못 적음
+       → 칸마다 묶음(lots) 여러 개를 둔다. 예전 기록은 묶음 하나로 옮긴다 */
+    T.items.forEach((it) => ['top', 'bottom'].forEach((pos) => {
+      const c = it[pos]; if (!c || Array.isArray(c.lots)) return;
+      it[pos] = { lots: (c.species && c.qty > 0) ? [{ id: 'lt' + Date.now().toString(36) + pos + it.n, species: c.species, label: '', qty: Number(c.qty) || 0, kg: c.kg, date: c.date || dateKey(), dead: c.dead || 0, by: c.by || '' }] : [] };
+    }));
     return T;
   }
+  const lotsOf = (it, pos) => ((it && it[pos] && Array.isArray(it[pos].lots)) ? it[pos].lots : []);
+  const lotName = (l) => (l.species || '') + (l.label ? `(${l.label})` : '');
+  const posLabel = (pos) => (pos === 'top' ? '상단' : '하단');
   const fmtKg = (v) => (v == null || v === '' || isNaN(v)) ? '' : (Math.round(Number(v) * 10) / 10).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + ' kg';
 
   const md = (k) => k ? `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}` : '';
@@ -1368,7 +1377,7 @@ const App = (() => {
   function fifoSet(T) {
     const bySp = {};
     T.items.forEach((it) => ['top', 'bottom'].forEach((pos) => {
-      const c = it[pos]; if (c && c.species && c.qty > 0 && c.date) (bySp[c.species] = bySp[c.species] || []).push({ key: it.n + pos, date: c.date });
+      lotsOf(it, pos).forEach((l) => { if (l.species && l.qty > 0 && l.date) (bySp[l.species] = bySp[l.species] || []).push({ key: l.id, date: l.date }); });
     }));
     const out = new Set();
     Object.values(bySp).forEach((list) => { if (list.length >= 2) out.add(list.slice().sort((a, b) => a.date.localeCompare(b.date))[0].key); });
@@ -1484,14 +1493,17 @@ const App = (() => {
       </button></td>`;
     };
     const stockCell = (it, pos) => {
-      const r = it[pos] || {};
-      const first = fifo.has(it.n + pos);
-      return `<td class="${first ? 'fifo' : ''}"><button class="tkCell" data-act="tankStock" data-n="${it.n}" data-pos="${pos}">
-        ${r.species && r.qty > 0 ? `<div class="tkSp">${esc(r.species)}<small>${r.qty}미</small></div>
-          ${r.kg ? `<div class="tkKg">${fmtKg(r.kg)}</div>` : ''}
-          <div class="tkDate sm">${md(r.date)} ${ageBadge(r.date, 10, 9999)}</div>
-          <div class="tkSub">폐사 ${r.dead || 0}${r.by ? ` · ${esc(r.by)}` : ''}</div>
-          ${first ? '<div class="tkFirst">먼저 사용 ①</div>' : ''}`
+      const lots = lotsOf(it, pos).filter((l) => l.qty > 0);
+      const anyFirst = lots.some((l) => fifo.has(l.id));
+      const qty = lots.reduce((a, l) => a + (Number(l.qty) || 0), 0), kg = lots.reduce((a, l) => a + (Number(l.kg) || 0), 0), dead = lots.reduce((a, l) => a + (Number(l.dead) || 0), 0);
+      return `<td class="${anyFirst ? 'fifo' : ''}"><button class="tkCell" data-act="tankStock" data-n="${it.n}" data-pos="${pos}">
+        ${lots.length ? `${lots.length === 1
+          ? `<div class="tkSp">${esc(lotName(lots[0]))}<small>${lots[0].qty}미</small></div>${lots[0].kg ? `<div class="tkKg">${fmtKg(lots[0].kg)}</div>` : ''}
+             <div class="tkDate sm">${md(lots[0].date)} ${ageBadge(lots[0].date, 10, 9999)}</div>`
+          : `<div class="tkLots">${lots.map((l) => `<div class="tkLotLine${fifo.has(l.id) ? ' first' : ''}"><b>${esc(lotName(l))}</b> ${l.qty}미${l.kg ? ` · ${fmtKg(l.kg)}` : ''} <span class="mut">${md(l.date)}</span>${fifo.has(l.id) ? ' ①' : ''}</div>`).join('')}</div>
+             <div class="tkKg">합 ${qty}미${kg ? ` · ${fmtKg(kg)}` : ''}</div>`}
+          <div class="tkSub">폐사 ${dead}${lots.length > 1 ? ` · ${lots.length}묶음` : (lots[0].by ? ` · ${esc(lots[0].by)}` : '')}</div>
+          ${anyFirst ? '<div class="tkFirst">먼저 사용 ①</div>' : ''}`
           : `<div class="tkEmpty">비어 있음</div><div class="tkSub">눌러서 입고</div>`}
       </button></td>`;
     };
@@ -1529,14 +1541,14 @@ const App = (() => {
 
     <div class="hd sub2"><h3>입고 기록</h3><span class="hint" style="margin:0">위 입고 칸에서 기록할 때마다 한 줄씩 쌓입니다 · 최근 것이 위</span></div>
     ${T.log.length ? `<div class="tkLogWrap"><table class="tkLog">
-      <thead><tr><th>날짜</th><th>수조</th><th>위치</th><th>품종</th><th class="r">마릿수</th><th class="r">kg</th><th class="r">폐사</th><th>기록</th><th></th></tr></thead>
+      <thead><tr><th>날짜</th><th>수조</th><th>위치</th><th>구분</th><th>품종</th><th class="r">마릿수</th><th class="r">kg</th><th class="r">폐사</th><th>기록</th><th></th></tr></thead>
       <tbody>${T.log.slice().sort((a, b) => (b.date + (b.at || '')).localeCompare(a.date + (a.at || ''))).map((L) => `<tr>
         <td>${L.date.slice(5).replace('-', '/')} (${WD[new Date(L.date + 'T00:00:00').getDay()]})</td>
-        <td>${L.n}</td><td>${L.pos === 'top' ? '상단' : '하단'}</td><td><b>${esc(L.species)}</b></td>
+        <td>${L.n}</td><td>${posLabel(L.pos)}</td><td>${{ in: '입고', edit: '고침', move: '이동', out: '출고' }[L.kind] || '입고'}${L.note ? ` <span class="mut">${esc(L.note)}</span>` : ''}</td><td><b>${esc(L.species)}${L.label ? `(${esc(L.label)})` : ''}</b></td>
         <td class="r">${L.qty}</td><td class="r">${L.kg != null && L.kg !== '' ? (Math.round(L.kg * 10) / 10) : '—'}</td><td class="r">${L.dead || 0}</td>
         <td class="mut">${esc(L.by || '')}${L.at ? ' ' + L.at : ''}</td>
         <td><button class="more" data-act="tankLogDel" data-id="${L.id}" aria-label="삭제">✕</button></td></tr>`).join('')}</tbody>
-      <tfoot><tr><td colspan="4">합계 ${T.log.length}건</td><td class="r">${T.log.reduce((a, L) => a + (Number(L.qty) || 0), 0)}</td><td class="r">${Math.round(T.log.reduce((a, L) => a + (Number(L.kg) || 0), 0) * 10) / 10}</td><td class="r">${T.log.reduce((a, L) => a + (Number(L.dead) || 0), 0)}</td><td colspan="2"></td></tr></tfoot>
+      <tfoot><tr><td colspan="5">합계 ${T.log.length}건</td><td class="r">${T.log.reduce((a, L) => a + (Number(L.qty) || 0), 0)}</td><td class="r">${Math.round(T.log.reduce((a, L) => a + (Number(L.kg) || 0), 0) * 10) / 10}</td><td class="r">${T.log.reduce((a, L) => a + (Number(L.dead) || 0), 0)}</td><td colspan="2"></td></tr></tfoot>
     </table></div>` : '<div class="tkEmptyLog">아직 입고 기록이 없습니다. 위 입고 칸을 눌러 첫 기록을 남기세요.</div>'}`;
   }
 
@@ -1575,23 +1587,40 @@ const App = (() => {
   }
 
   function tankStockModal(n, pos) {
-    const T = tanksOf(), it = T.items[n - 1], r = it[pos] || {};
-    modal(`수조 ${n} ${pos === 'top' ? '상단' : '하단'} — 입고`, `
-      <div class="mlabel">품종</div>
-      <div class="roles big wrap" id="tkSp">${SPECIES.map((x) => `<button type="button" class="rl${x === r.species ? ' on' : ''}" data-sp="${esc(x)}">${esc(x)}</button>`).join('')}
-        <input id="tkSpOther" placeholder="다른 품종 직접 입력" value="${r.species && !SPECIES.includes(r.species) ? esc(r.species) : ''}" style="flex:1 1 100%;margin-top:6px"></div>
+    const T = tanksOf(), it = T.items[n - 1];
+    if (!it[pos] || !Array.isArray(it[pos].lots)) it[pos] = { lots: [] };
+    const lots = it[pos].lots, fifo = fifoSet(T);
+    const whoNow0 = (S.ui.whoDate === dateKey() ? S.ui.who : '') || '';
+    const stamp2 = () => { const now = new Date(); return `${pad(now.getHours())}:${pad(now.getMinutes())}`; };
+    const logIt = (kind, l, extra) => T.log.push({ id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), date: extra && extra.date || l.date || dateKey(), n: extra && extra.n || n, pos: extra && extra.pos || pos, kind, species: l.species, label: l.label || '', qty: l.qty, kg: l.kg, dead: l.dead || 0, by: extra && extra.by || l.by || '', at: stamp2(), note: extra && extra.note || '' });
+    const targets = []; T.items.forEach((x) => ['top', 'bottom'].forEach((p) => { if (!(x.n === n && p === pos)) targets.push([x.n, p]); }));
+    modal(`수조 ${n} ${posLabel(pos)}`, `
+      <div class="mlabel">지금 들어 있는 것 <span class="opt">${lots.length ? `${lots.length}묶음` : '없음'}</span></div>
+      <div class="tkLotList">${lots.length ? lots.map((l) => `<div class="tkLot" data-id="${l.id}">
+          <div class="tkLotMain"><b>${esc(lotName(l))}</b> ${l.qty}미${l.kg ? ` · ${fmtKg(l.kg)}` : ''} · ${md(l.date)} 입고${l.dead ? ` · 폐사 ${l.dead}` : ''}${fifo.has(l.id) ? ' <span class="chip today">먼저 사용 ①</span>' : ''}${l.by ? `<div class="tkSub">${esc(l.by)}</div>` : ''}</div>
+          <div class="tkLotBtns"><button type="button" class="btn sm" data-lot="edit" data-id="${l.id}">고치기</button><button type="button" class="btn sm" data-lot="move" data-id="${l.id}">옮기기</button><button type="button" class="btn sm danger" data-lot="out" data-id="${l.id}">꺼내기</button></div></div>`).join('')
+        : '<div class="hint">비어 있습니다. 아래에서 입고를 적으세요.</div>'}</div>
+      <div id="tkMove" hidden class="notice"><b>어디로 옮길까요?</b> <select id="tkMoveTo">${targets.map(([tn, tp]) => `<option value="${tn}|${tp}">수조 ${tn} ${posLabel(tp)}${lotsOf(T.items[tn - 1], tp).length ? ` (${lotsOf(T.items[tn - 1], tp).map(lotName).join(', ')})` : ' (비어 있음)'}</option>`).join('')}</select>
+        <div class="rowbtns" style="margin-top:8px"><button type="button" class="btn primary sm" id="tkMoveGo">옮기기</button><button type="button" class="btn sm ghost" id="tkMoveCancel">취소</button></div><p class="hint" style="margin:6px 0 0">기존 기록은 지워지지 않고 "이동"으로 남습니다.</p></div>
+      <div class="mlabel" id="tkFormTitle" style="margin-top:14px">➕ 입고 추가 <span class="opt">기존 것은 그대로 두고 더합니다</span></div>
+      <div class="roles big wrap" id="tkSp">${SPECIES.map((x) => `<button type="button" class="rl" data-sp="${esc(x)}">${esc(x)}</button>`).join('')}
+        <input id="tkSpOther" placeholder="다른 품종 직접 입력" style="flex:1 1 100%;margin-top:6px"></div>
+      <label>상세 <span class="opt">선택 — 같은 품종을 나눠 적을 때</span><input id="tkLabel" placeholder="예: 레드 · 브라운 · 러시아산" autocomplete="off"></label>
       <div class="row2">
-        <label>마릿수<input type="number" id="tkQty" min="0" step="1" inputmode="numeric" value="${r.qty != null ? r.qty : ''}" placeholder="예: 8"></label>
-        <label>킬로수 (kg)<input type="number" id="tkKg" min="0" step="0.1" inputmode="decimal" value="${r.kg != null ? r.kg : ''}" placeholder="예: 25.6"></label>
+        <label>마릿수<input type="number" id="tkQty" min="0" step="1" inputmode="numeric" placeholder="예: 8"></label>
+        <label>킬로수 (kg)<input type="number" id="tkKg" min="0" step="0.1" inputmode="decimal" placeholder="예: 25.6"></label>
       </div>
-      <label>입고일<input type="date" id="tkD" value="${r.date || dateKey()}" max="${dateKey()}"></label>
-      <label>폐사 (입고 후 누적)<input type="number" id="tkDead" min="0" step="1" inputmode="numeric" value="${r.dead || 0}"></label>
-      ${whoInput((S.ui.whoDate === dateKey() ? S.ui.who : '') || r.by || '')}
-      ${r.species ? `<button type="button" class="btn danger sm" id="tkClear" style="margin-top:12px">비우기 (다 나갔음)</button>` : ''}
+      <div class="row2">
+        <label>입고일<input type="date" id="tkD" value="${dateKey()}" max="${dateKey()}"></label>
+        <label>폐사 (입고 후 누적)<input type="number" id="tkDead" min="0" step="1" inputmode="numeric" value="0"></label>
+      </div>
+      ${whoInput(whoNow0)}
+      <input type="hidden" id="tkEditId" value="">
+      <button type="button" class="btn sm ghost" id="tkEditCancel" hidden style="margin-top:6px">고치기 취소 — 새 입고로 돌아가기</button>
     `, () => {
       const sel = document.querySelector('#tkSp .rl.on');
       const sp = ($('#tkSpOther').value.trim()) || (sel ? sel.dataset.sp : '');
-      const qty = Number($('#tkQty').value), d = $('#tkD').value;
+      const qty = Number($('#tkQty').value), d = $('#tkD').value, label = $('#tkLabel').value.trim();
       if (!sp) { alert('품종을 골라 주세요.'); return false; }
       if (!(qty > 0)) { alert('마릿수를 적어 주세요.'); return false; }
       if (!d) { alert('입고일을 골라 주세요.'); return false; }
@@ -1599,23 +1628,56 @@ const App = (() => {
       const dead = Math.max(0, Number($('#tkDead').value) || 0);
       const who = whoValue();
       if (!who) { alert('누가 입력하는지 적어 주세요.'); return false; }
-      const prev = it[pos] || {};
-      it[pos] = { species: sp, qty, date: d, dead, kg, by: who };
-      // 새 입고(품종·마릿수·kg·날짜 중 하나라도 바뀜)면 기록에 한 줄 추가, 폐사만 고친 거면 그 줄만 갱신
-      const same = prev.species === sp && prev.qty === qty && prev.date === d && (prev.kg == null ? kg == null : prev.kg === kg);
-      const now = new Date(), at = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-      if (!same || !T.log.length) {
-        T.log.push({ id: 'l' + Date.now(), date: d, n, pos, species: sp, qty, kg, dead, by: who, at });
+      const editId = $('#tkEditId').value;
+      if (editId) {
+        const l = lots.find((x) => x.id === editId); if (!l) return false;
+        Object.assign(l, { species: sp, label, qty, kg, date: d, dead, by: who });
+        logIt('edit', l, { by: who });
       } else {
-        const L = T.log.slice().reverse().find((x) => x.n === n && x.pos === pos && x.date === d && x.species === sp);
-        if (L) { L.dead = dead; L.by = who; L.at = at; }
+        const l = { id: 'lt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), species: sp, label, qty, kg, date: d, dead, by: who };
+        lots.push(l);
+        logIt('in', l, { by: who });
       }
       save(); render();
     }, '기록');
-    $('#tkSp').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return;
-      $('#tkSp').querySelectorAll('.rl').forEach((x) => x.classList.remove('on')); b.classList.add('on'); $('#tkSpOther').value = ''; });
+    const box = $('#modal');
+    box.querySelector('#tkSp').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return;
+      box.querySelector('#tkSp').querySelectorAll('.rl').forEach((x) => x.classList.remove('on')); b.classList.add('on'); box.querySelector('#tkSpOther').value = ''; });
     bindWhoChips();
-    const cl = $('#tkClear'); if (cl) cl.addEventListener('click', () => { delete it[pos]; save(); closeModal(); render(); });
+    const okBtn = box.querySelector('[data-act="mOk"]');
+    const resetForm = () => { box.querySelector('#tkEditId').value = ''; box.querySelector('#tkFormTitle').innerHTML = '➕ 입고 추가 <span class="opt">기존 것은 그대로 두고 더합니다</span>'; if (okBtn) okBtn.textContent = '기록'; box.querySelector('#tkEditCancel').hidden = true; };
+    box.querySelector('#tkEditCancel').addEventListener('click', () => { resetForm(); ['tkQty', 'tkKg', 'tkLabel', 'tkSpOther'].forEach((id) => { box.querySelector('#' + id).value = ''; }); box.querySelector('#tkDead').value = '0'; box.querySelector('#tkD').value = dateKey(); box.querySelectorAll('#tkSp .rl').forEach((x) => x.classList.remove('on')); });
+    let moveId = null;
+    box.querySelector('.tkLotList').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-lot]'); if (!b) return;
+      const l = lots.find((x) => x.id === b.dataset.id); if (!l) return;
+      if (b.dataset.lot === 'edit') {
+        box.querySelector('#tkEditId').value = l.id;
+        box.querySelectorAll('#tkSp .rl').forEach((x) => x.classList.toggle('on', x.dataset.sp === l.species));
+        box.querySelector('#tkSpOther').value = SPECIES.includes(l.species) ? '' : l.species;
+        box.querySelector('#tkLabel').value = l.label || ''; box.querySelector('#tkQty').value = l.qty; box.querySelector('#tkKg').value = l.kg != null ? l.kg : ''; box.querySelector('#tkD').value = l.date || dateKey(); box.querySelector('#tkDead').value = l.dead || 0;
+        box.querySelector('#tkFormTitle').innerHTML = `✏️ 고치기 — ${esc(lotName(l))} <span class="opt">마릿수·kg·폐사를 바로잡습니다</span>`; if (okBtn) okBtn.textContent = '고친 내용 저장'; box.querySelector('#tkEditCancel').hidden = false;
+        box.querySelector('#tkFormTitle').scrollIntoView({ block: 'nearest' });
+      } else if (b.dataset.lot === 'move') {
+        moveId = l.id; box.querySelector('#tkMove').hidden = false; box.querySelector('#tkMove b').textContent = `${lotName(l)} ${l.qty}미 — 어디로 옮길까요?`;
+      } else if (b.dataset.lot === 'out') {
+        if (!confirm(`${lotName(l)} ${l.qty}미를 꺼낼까요? (다 나갔음)\n기록은 "출고"로 남습니다.`)) return;
+        const who = whoValue() || l.by || '';
+        it[pos].lots = lots.filter((x) => x.id !== l.id);
+        logIt('out', l, { by: who, date: dateKey() });
+        save(); closeModal(); render();
+      }
+    });
+    box.querySelector('#tkMoveCancel').addEventListener('click', () => { box.querySelector('#tkMove').hidden = true; moveId = null; });
+    box.querySelector('#tkMoveGo').addEventListener('click', () => {
+      const l = lots.find((x) => x.id === moveId); if (!l) return;
+      const [tn, tp] = box.querySelector('#tkMoveTo').value.split('|'); const tgt = T.items[Number(tn) - 1]; if (!tgt) return;
+      if (!tgt[tp] || !Array.isArray(tgt[tp].lots)) tgt[tp] = { lots: [] };
+      it[pos].lots = lots.filter((x) => x.id !== l.id); tgt[tp].lots.push(l);
+      const who = whoValue() || l.by || '';
+      logIt('move', l, { by: who, date: dateKey(), n: Number(tn), pos: tp, note: `수조 ${n} ${posLabel(pos)} → 수조 ${tn} ${posLabel(tp)}` });
+      save(); closeModal(); render();
+    });
   }
 
   /* ── 공지사항 필독 ───────────────────────────────────────── */
@@ -4658,7 +4720,7 @@ const App = (() => {
   /* 수조 관리표 입고 kg 합계 — 품종별 현재 재고 */
   function tankStockKg(sp) {
     const T = S.tanks; if (!T || !T.items) return 0;
-    let kg = 0; T.items.forEach((it) => ['top', 'bottom'].forEach((pos) => { const c = it[pos]; if (c && c.species === sp && Number(c.kg) > 0) kg += Number(c.kg); }));
+    let kg = 0; T.items.forEach((it) => ['top', 'bottom'].forEach((pos) => { lotsOf(it, pos).forEach((l) => { if (l.species === sp && Number(l.kg) > 0) kg += Number(l.kg); }); }));
     return Math.round(kg * 10) / 10;
   }
   /* 연간 단가 선 그래프 — 해마다 한 줄, x는 1~12월(날짜), y는 kg당 단가. 추석·설 위치 표시 */

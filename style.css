@@ -1492,3 +1492,12 @@ input.cpTarget{outline:2px solid var(--ink);outline-offset:1px}
 .demoBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;background:var(--wk-soft);border:1px solid var(--wk);color:var(--ink);border-radius:9px;padding:8px 12px;margin:0 0 12px;font-size:13.5px}
 .demoBar code{background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:1px 6px;font-weight:700}
 .demoBar .btn{margin-left:auto}
+
+/* 수조 칸 안 여러 묶음 (2026-10-11) */
+.tkLots{display:flex;flex-direction:column;gap:3px;text-align:left;margin:0 auto;max-width:220px}
+.tkLotLine{font-size:13px;line-height:1.35;padding:3px 6px;border-radius:6px;background:var(--surface-2)}
+.tkLotLine.first{outline:1px solid var(--accent)}
+.tkLotList{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.tkLot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-size:14px}
+.tkLotMain{min-width:0;flex:1 1 180px}
+.tkLotBtns{display:flex;gap:4px;flex-wrap:wrap}

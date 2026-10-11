@@ -977,7 +977,7 @@ const App = (() => {
           <label>사장님 비밀번호<input id="rgPw" type="password" autocomplete="current-password"></label>
           <button class="btn primary" data-act="deviceRegister">이 기기 등록</button>
           <p class="hint">첫 등록이면 지금 넣는 비밀번호가 사장님 비밀번호가 됩니다 (안산점·안양점 공통). 등록은 사장님만 합니다.</p>
-          <p class="hint"><b>매장에서 한 번 등록하면 그 매장 인터넷에서는 어떤 기기든 등록 없이 열립니다.</b> 이 화면이 매장에서 떴다면 이 매장 인터넷이 아직 기억되지 않은 것이니, 사장님이 여기서 한 번만 등록해 주세요. 매장 밖에서 쓰는 기기는 등록 뒤 나오는 전용 주소를 홈 화면에 두면 됩니다.</p>
+          <p class="hint"><b>매장에서 한 번 등록하면 그 매장 인터넷에서는 어떤 기기든 원래 주소로 그냥 열립니다.</b> 이 화면이 매장에서 떴다면 이 매장 인터넷이 아직 기억되지 않은 것이니, 사장님이 여기서 한 번만 등록해 주세요.</p>
         </div>
       </div>
       <div class="card" style="margin-top:14px"><b>🎓 교육 자료는 등록 없이 볼 수 있습니다.</b>
@@ -992,7 +992,11 @@ const App = (() => {
     try {
       const h = await hashPw(pw);
       await Store.deviceRegister(h, name, store || null);
-      deviceLinkModal(true);
+      if (store) {   // 매장 소속 기기 — 이 매장 인터넷이 서버에 기억되어, 이제 어떤 기기든 원래 주소로 그냥 열린다 (사장님 결정 2026-10-11: 전용 주소 안내 없음)
+        modal('기기를 등록했습니다', `<p><b>이 기기는 이제 매장 기록을 볼 수 있습니다.</b></p>
+          <p class="hint">${esc((Store.meta.stores.find((x) => x.id === store) || {}).name || '이 매장')} 인터넷도 함께 기억했습니다. 이제 이 매장 인터넷에 붙은 기기는 <b>원래 주소(haemonic-ops.vercel.app)로 그냥 열립니다.</b> 포스가 껐다 켜져도, 다른 포스여도 다시 등록할 필요가 없습니다.</p>`, () => { location.href = location.pathname; }, '앱 열기');
+        const x = $('#modal [data-act="mClose"]'); if (x) x.hidden = true;
+      } else deviceLinkModal(true);   // 공용(사장님 폰 등) — 매장 밖에서 쓰므로 전용 주소를 안내
     } catch (e) { alert('등록 실패: ' + (e.message || e)); if (btn) { btn.disabled = false; btn.textContent = '이 기기 등록'; } }
   }
   /* 이 기기 전용 주소 — 홈 화면·즐겨찾기에 두면 브라우저가 저장소를 지워도 그 주소로 열 때 자동 복구된다 */

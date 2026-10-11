@@ -3991,6 +3991,8 @@ const App = (() => {
     if (e.target.closest('.kgTbl')) syncKgTotals();
     else if (e.target.classList.contains('sfIn')) syncSalesTotals();
     else if (e.target.dataset && e.target.dataset.act === 'biz') { bizOf()[e.target.dataset.f] = e.target.value; save(); }   // 치는 즉시 상태에 반영 — 화면이 다시 그려져도 글자가 안 지워진다
+    else if (e.target.dataset && e.target.dataset.act === 'healthMemo') { const h = healthList().find((x) => x.staffId === e.target.dataset.id); if (h) { h.memo = e.target.value; save(); } }
+    else if (e.target.dataset && e.target.dataset.act === 'hyStaff' && e.target.dataset.f === 'memo') { const hs = hygieneOf().staff; hs[e.target.dataset.id] = hs[e.target.dataset.id] || {}; hs[e.target.dataset.id].memo = e.target.value; save(); }
   });
   /* 입력값 읽기 — 음수·글자는 붉게 표시하고 null 반환(저장 안 함) */
   function readSalesFields() {
@@ -4419,8 +4421,22 @@ const App = (() => {
     if (!Array.isArray(S.health)) S.health = [];
     const act = S.staff.filter((s) => s.active);
     S.health.forEach((e) => { if (!e.staffId) { const st = act.find((x) => x.name === e.name && !S.health.some((o) => o.staffId === x.id)); if (st) e.staffId = st.id; } });
-    act.forEach((st) => { const e = S.health.find((x) => x.staffId === st.id); if (e) e.name = st.name; else S.health.push({ id: newId('h'), staffId: st.id, name: st.name, issued: (st.health && st.health.issued) || '', memo: (st.health && st.health.memo) || '' }); });
-    S.health = S.health.filter((e) => e.staffId && S.staff.some((x) => x.id === e.staffId));   // 명단에 없는 사람은 정리 (퇴사자 기록은 비활성 직원으로 남아 있는 동안 보관)
+    /* 직원당 기록 하나로 — 기기마다 따로 만든 기록이 합쳐지면 같은 직원에게 두 개가 생겨 빈 쪽이 보이던 문제(메모가 사라짐, 2026-10-11).
+       번호는 'h:직원번호'로 모든 기기에서 같게 만들고, 겹치면 값이 있는 쪽을 남긴다 */
+    const byStaff = {};
+    S.health.forEach((e) => {
+      if (!e.staffId) return;
+      const cur = byStaff[e.staffId];
+      if (!cur) { byStaff[e.staffId] = e; return; }
+      if (!cur.issued && e.issued) cur.issued = e.issued;
+      if (!cur.memo && e.memo) cur.memo = e.memo;
+    });
+    act.forEach((st) => {
+      let e = byStaff[st.id];
+      if (!e) { e = { id: 'h:' + st.id, staffId: st.id, name: st.name, issued: (st.health && st.health.issued) || '', memo: (st.health && st.health.memo) || '' }; byStaff[st.id] = e; }
+      e.name = st.name;
+    });
+    S.health = Object.values(byStaff).filter((e) => S.staff.some((x) => x.id === e.staffId));   // 명단에 없는 사람은 정리
     return S.health.filter((e) => act.some((x) => x.id === e.staffId));
   }
   const healthEntry = (name) => healthList().find((x) => x.name === name);
@@ -4458,9 +4474,9 @@ const App = (() => {
       <div class="card"><div class="cl">정상</div><div class="cv">${list.length - bad.length - none.length}<small>명</small></div></div></div>`;
     h += `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>이름</th><th>발급일</th><th>만료일</th><th>상태</th><th>메모</th></tr></thead><tbody>
       ${list.map((e) => { const st = stat(e), sp = S.staff.find((x) => x.id === e.staffId) || {}; return `<tr><td><b>${esc(e.name || '')}</b>${(sp.roles || []).length ? `<div class="mut" style="font-size:11px">${esc(sp.roles.join('·'))}</div>` : ''}</td>
-        <td><input type="date" class="tkIn wide" data-act="healthDate" data-id="${e.id}" value="${esc(e.issued || '')}" max="${dateKey()}"></td>
+        <td><input type="date" class="tkIn wide" data-act="healthDate" data-id="${e.staffId}" value="${esc(e.issued || '')}" max="${dateKey()}"></td>
         <td class="mut">${st.due || '—'}</td><td>${lvlChip(st)}</td>
-        <td><input class="tkIn wide2" data-act="healthMemo" data-id="${e.id}" value="${esc(e.memo || '')}" placeholder="보건소 · 검진기관 등"></td></tr>`; }).join('')}
+        <td><input class="tkIn wide2" data-act="healthMemo" data-id="${e.staffId}" value="${esc(e.memo || '')}" placeholder="보건소 · 검진기관 등"></td></tr>`; }).join('')}
       ${list.length ? '' : '<tr><td colspan="5">직원 명단에 활성 직원이 없습니다. 인사관리 › 직원 명단에서 먼저 추가하세요.</td></tr>'}</tbody></table></div>
       <p class="hint keep" style="margin-top:8px">이름은 <b>직원 명단</b>과 같이 움직입니다. 사람을 넣거나 빼려면 직원 명단에서 하세요.</p>
       <p class="hint">기준 — 식품위생법 제40조: 식품 조리·판매 종사자는 건강진단을 받아야 하며 유효기간은 통상 1년으로 봅니다(관할 보건소 기준 확인). 여기 적은 이름이 직원 명단의 이름과 같으면, 만료된 사람을 근무표에 배치할 때 배치 창에 경고가 보입니다.</p>`;
@@ -6392,7 +6408,7 @@ const App = (() => {
       const renderLater = () => { if (document.activeElement === b) b.addEventListener('blur', () => render(), { once: true }); else render(); };
       if (b.dataset.act === 'healthMonths') { S.settings.healthMonths = Math.max(1, Number(b.value) || 12); save(); renderLater(); }
       if (b.dataset.act === 'healthDate' || b.dataset.act === 'healthMemo') {
-        const e = healthList().find((x) => x.id === b.dataset.id); if (!e) return;
+        const e = healthList().find((x) => x.staffId === b.dataset.id); if (!e) return;
         if (b.dataset.act === 'healthDate') e.issued = b.value; else e.memo = b.value.trim();
         save(); if (b.dataset.act === 'healthDate') renderLater();
       }

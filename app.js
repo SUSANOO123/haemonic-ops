@@ -2720,7 +2720,7 @@ const App = (() => {
     modal(isNew ? '글 쓰기' : '글 수정', `
       <div class="mlabel">종류</div>
       <div class="roles wrap" id="isCats">${[...FB_CATS, ...ISSUE_CATS].map((c) => `<button type="button" class="rl${c === x.cat ? ' on' : ''}${FB_CATS.includes(c) ? ' fb' : ''}" data-cat="${esc(c)}">${FB_CATS.includes(c) ? (c === '앱 오류' ? '🐛 ' : '🙋 ') : ''}${esc(c)}</button>`).join('')}</div>
-      <input id="isCOther" placeholder="다른 종류 직접 입력" value="${x.cat && !ISSUE_CATS.includes(x.cat) && !FB_CATS.includes(x.cat) ? esc(x.cat) : ''}" style="margin-top:6px">
+      <input id="isCOther" placeholder="기타 — 종류를 짧게 적어 주세요 (선택)" value="${x.cat && !ISSUE_CATS.includes(x.cat) && !FB_CATS.includes(x.cat) ? esc(x.cat) : ''}" style="margin-top:6px"${(x.cat === '기타' || (x.cat && !ISSUE_CATS.includes(x.cat) && !FB_CATS.includes(x.cat))) ? '' : ' hidden'}>
       <label>제목<input id="isT" value="${esc(x.title || '')}" placeholder="${FB_CATS.includes(x.cat) ? '예: 할 일 체크가 풀림 (어디 + 무엇)' : '예: 룸2 에어컨 소음 — 손님 컴플레인'}"></label>
       <label>무슨 일이 있었나요<textarea id="isB" rows="${FB_CATS.includes(x.cat) ? 8 : 4}" placeholder="상황을 그대로 적으세요. 잘잘못보다 다음에 어떻게 할지가 중요합니다.">${esc(x.body || (FB_CATS.includes(x.cat) ? FB_TEMPLATE : ''))}</textarea></label>
       <label class="chk impChk" id="isTeamWrap"${x.cat === '앱 건의' ? '' : ' hidden'}><input type="checkbox" id="isTeam"${x.team ? ' checked' : ''}> <span class="chip crit">중요</span> 이 건의는 <b>팀원들과 상의한 내용</b>입니다 (혼자 판단한 건의는 올리지 않습니다)</label>
@@ -2732,7 +2732,7 @@ const App = (() => {
       const title = $('#isT').value.trim();
       if (!title) { alert('제목을 입력하세요.'); return false; }
       const catSel = document.querySelector('#isCats .rl.on');
-      const cat = $('#isCOther').value.trim() || (catSel ? catSel.dataset.cat : '');
+      const cat = (catSel && catSel.dataset.cat === '기타' && $('#isCOther').value.trim()) || (catSel ? catSel.dataset.cat : '');   // 직접 입력은 '기타'일 때만 (제목을 종류 칸에 적던 혼동 방지, 2026-10-11)
       if (!cat) { alert('종류를 골라 주세요.'); return false; }
       const anon = $('#isAnon').checked;
       const team = !!($('#isTeam') && $('#isTeam').checked);
@@ -2755,13 +2755,13 @@ const App = (() => {
       }
     }, '저장');
     $('#isCats').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return;
-      $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#isCOther').value = '';
+      $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); b.classList.add('on'); $('#isCOther').value = ''; $('#isCOther').hidden = b.dataset.cat !== '기타';
       // 앱 오류·건의를 고르면 본문이 비어 있거나 양식 그대로일 때 양식을 채운다 (다른 종류로 바꾸면 양식 그대로인 경우만 비운다)
       const tw = $('#isTeamWrap'); if (tw) tw.hidden = b.dataset.cat !== '앱 건의';
       const ta = $('#isB'), isFb = FB_CATS.includes(b.dataset.cat), raw = ta.value.trim();
       if (isFb && (!raw || raw === FB_TEMPLATE)) { ta.value = FB_TEMPLATE; ta.rows = 8; $('#isT').placeholder = '예: 할 일 체크가 풀림 (어디 + 무엇)'; }
       else if (!isFb && raw === FB_TEMPLATE) { ta.value = ''; ta.rows = 4; } });
-    $('#isCOther').addEventListener('input', () => { if ($('#isCOther').value.trim()) { $('#isCats').querySelectorAll('.rl').forEach((el) => el.classList.remove('on')); const tw = $('#isTeamWrap'); if (tw) tw.hidden = true; } });
+    $('#isCOther').addEventListener('input', () => { const tw = $('#isTeamWrap'); if (tw) tw.hidden = true; });   // '기타' 선택은 그대로 둔다
     $('#isByChips').addEventListener('click', (e) => { const b = e.target.closest('.rl'); if (!b) return; $('#isBy').value = b.dataset.who; });
     $('#isAnon').addEventListener('change', () => { $('#isByWrap').hidden = $('#isAnon').checked; });
   }

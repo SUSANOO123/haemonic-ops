@@ -4413,12 +4413,15 @@ const App = (() => {
   }
   /* 보건증 목록 — 직원 명단과 별개로 이름을 직접 적는다. S.health[{id, name, issued, memo}]
      예전 staff.health 기록과 재직 직원 이름은 처음 열 때 한 번 옮겨 넣는다 */
+  /* 보건증 명단은 직원 명단(활성 직원)을 그대로 따른다 — 사장님 요청 2026-10-11.
+     직원마다 기록 하나(staffId 로 연결). 이름은 직원 명단 것을 쓰고, 명단에 없는 사람(옛 자리표시·퇴사)은 보이지 않는다. */
   function healthList() {
-    if (!Array.isArray(S.health)) {
-      S.health = [];
-      S.staff.filter((s) => s.active).forEach((s) => S.health.push({ id: newId('h'), name: s.name, issued: (s.health && s.health.issued) || '', memo: (s.health && s.health.memo) || '' }));
-    }
-    return S.health;
+    if (!Array.isArray(S.health)) S.health = [];
+    const act = S.staff.filter((s) => s.active);
+    S.health.forEach((e) => { if (!e.staffId) { const st = act.find((x) => x.name === e.name && !S.health.some((o) => o.staffId === x.id)); if (st) e.staffId = st.id; } });
+    act.forEach((st) => { const e = S.health.find((x) => x.staffId === st.id); if (e) e.name = st.name; else S.health.push({ id: newId('h'), staffId: st.id, name: st.name, issued: (st.health && st.health.issued) || '', memo: (st.health && st.health.memo) || '' }); });
+    S.health = S.health.filter((e) => e.staffId && S.staff.some((x) => x.id === e.staffId));   // 명단에 없는 사람은 정리 (퇴사자 기록은 비활성 직원으로 남아 있는 동안 보관)
+    return S.health.filter((e) => act.some((x) => x.id === e.staffId));
   }
   const healthEntry = (name) => healthList().find((x) => x.name === name);
   const healthOf = (st) => { const e = st && healthEntry(st.name); return dueStatus(e && e.issued, healthMonths()); };
@@ -4447,19 +4450,19 @@ const App = (() => {
     const bad = list.filter((e) => dueBad(stat(e))), none = list.filter((e) => stat(e).level === 'none');
     let h = `<div class="hd"><div><h2>보건증 관리</h2><div class="sub">식품을 다루는 사람은 건강진단(보건증)을 받아야 합니다. 이름과 발급일만 적어 두면 만료 30일·7일 전에 할 일 화면에 알림이 뜹니다.</div></div>
       <div class="mnav"><span class="hint" style="margin:0">유효기간</span><input type="number" class="tkIn" data-act="healthMonths" value="${healthMonths()}" min="1" max="36"><span class="hint" style="margin:0">개월</span>
-        <button class="btn primary" data-act="healthAdd">+ 사람 추가</button></div></div>`;
+        <button class="btn" data-act="view" data-v="staff">👥 직원 명단</button></div></div>`;
     h += `<div class="cards m4">
       <div class="card"><div class="cl">등록 인원</div><div class="cv">${list.length}<small>명</small></div></div>
       <div class="card${bad.length ? ' warn' : ''}"><div class="cl">만료 · 임박</div><div class="cv">${bad.length}<small>명</small></div><div class="cs">30일 이내</div></div>
       <div class="card${none.length ? ' warn' : ''}"><div class="cl">발급일 미입력</div><div class="cv">${none.length}<small>명</small></div></div>
       <div class="card"><div class="cl">정상</div><div class="cv">${list.length - bad.length - none.length}<small>명</small></div></div></div>`;
-    h += `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>이름</th><th>발급일</th><th>만료일</th><th>상태</th><th>메모</th><th></th></tr></thead><tbody>
-      ${list.map((e) => { const st = stat(e); return `<tr><td><input class="tkIn wide" data-act="healthName" data-id="${e.id}" value="${esc(e.name || '')}" placeholder="이름"></td>
+    h += `<div class="tkLogWrap"><table class="tkLog"><thead><tr><th>이름</th><th>발급일</th><th>만료일</th><th>상태</th><th>메모</th></tr></thead><tbody>
+      ${list.map((e) => { const st = stat(e), sp = S.staff.find((x) => x.id === e.staffId) || {}; return `<tr><td><b>${esc(e.name || '')}</b>${(sp.roles || []).length ? `<div class="mut" style="font-size:11px">${esc(sp.roles.join('·'))}</div>` : ''}</td>
         <td><input type="date" class="tkIn wide" data-act="healthDate" data-id="${e.id}" value="${esc(e.issued || '')}" max="${dateKey()}"></td>
         <td class="mut">${st.due || '—'}</td><td>${lvlChip(st)}</td>
-        <td><input class="tkIn wide2" data-act="healthMemo" data-id="${e.id}" value="${esc(e.memo || '')}" placeholder="보건소 · 검진기관 등"></td>
-        <td><button class="btn sm ghost danger" data-act="healthDel" data-id="${e.id}">삭제</button></td></tr>`; }).join('')}
-      ${list.length ? '' : '<tr><td colspan="6">아직 등록한 사람이 없습니다. <b>+ 사람 추가</b>로 시작하세요.</td></tr>'}</tbody></table></div>
+        <td><input class="tkIn wide2" data-act="healthMemo" data-id="${e.id}" value="${esc(e.memo || '')}" placeholder="보건소 · 검진기관 등"></td></tr>`; }).join('')}
+      ${list.length ? '' : '<tr><td colspan="5">직원 명단에 활성 직원이 없습니다. 인사관리 › 직원 명단에서 먼저 추가하세요.</td></tr>'}</tbody></table></div>
+      <p class="hint keep" style="margin-top:8px">이름은 <b>직원 명단</b>과 같이 움직입니다. 사람을 넣거나 빼려면 직원 명단에서 하세요.</p>
       <p class="hint">기준 — 식품위생법 제40조: 식품 조리·판매 종사자는 건강진단을 받아야 하며 유효기간은 통상 1년으로 봅니다(관할 보건소 기준 확인). 여기 적은 이름이 직원 명단의 이름과 같으면, 만료된 사람을 근무표에 배치할 때 배치 창에 경고가 보입니다.</p>`;
     return h;
   }
@@ -5873,8 +5876,6 @@ const App = (() => {
         case 'biSp': S.ui.biSp = b.dataset.sp; save(); render(); break;
         case 'buyEvAdd': buyEvForm(); break;
         case 'biEv': S.ui.biEv = b.dataset.d; save(); render(); break;
-        case 'healthAdd': healthList().push({ id: newId('h'), name: '', issued: '', memo: '' }); save(); render(); setTimeout(() => { const el = document.querySelector('input[data-act="healthName"][value=""]'); if (el) el.focus(); }, 50); break;
-        case 'healthDel': { const e = healthList().find((x) => x.id === id); if (!e) return; if (e.name && !confirm(`${e.name} 보건증 기록을 지울까요?`)) return; S.health = healthList().filter((x) => x.id !== id); save(); render(); break; }
         case 'sampleLoad': loadSampleData(); break;
         case 'sampleClear': if (!confirm('샘플 자료를 지울까요? 직접 넣은 기록은 그대로 남습니다.')) return; clearSampleData(); break;
         case 'buyEvDel': S.settings.buyEvents = (S.settings.buyEvents || []).filter((e) => !(e.date === b.dataset.d && e.name === b.dataset.n)); save(); render(); break;
@@ -6390,9 +6391,9 @@ const App = (() => {
          (보건증 신고 2026-10-09). 칸에 아직 커서가 있으면 손을 뗀 뒤에 다시 그린다. */
       const renderLater = () => { if (document.activeElement === b) b.addEventListener('blur', () => render(), { once: true }); else render(); };
       if (b.dataset.act === 'healthMonths') { S.settings.healthMonths = Math.max(1, Number(b.value) || 12); save(); renderLater(); }
-      if (b.dataset.act === 'healthDate' || b.dataset.act === 'healthMemo' || b.dataset.act === 'healthName') {
+      if (b.dataset.act === 'healthDate' || b.dataset.act === 'healthMemo') {
         const e = healthList().find((x) => x.id === b.dataset.id); if (!e) return;
-        if (b.dataset.act === 'healthDate') e.issued = b.value; else if (b.dataset.act === 'healthMemo') e.memo = b.value.trim(); else e.name = b.value.trim();
+        if (b.dataset.act === 'healthDate') e.issued = b.value; else e.memo = b.value.trim();
         save(); if (b.dataset.act === 'healthDate') renderLater();
       }
       if (b.dataset.act === 'hyOwner') { const o = hygieneOf().owner; o[b.dataset.f] = b.dataset.f === 'every' ? Math.max(1, Number(b.value) || 12) : b.value.trim(); save(); if (b.dataset.f !== 'org') renderLater(); }

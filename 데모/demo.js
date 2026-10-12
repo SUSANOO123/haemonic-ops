@@ -158,7 +158,10 @@ window.HM_DEMO_SEED = async function (api) {
       const crab = Math.round(tot / SC.kgPer.crab * 10) / 10, king = Math.round(tot / SC.kgPer.king * 10) / 10, lob = Math.round(R() * 3 * 10) / 10;
       const sp = (v) => { const d1 = Math.round(v * SC.kgSplit.deliv * 10) / 10, p1 = Math.round(v * SC.kgSplit.take * 10) / 10; return [Math.round((v - d1 - p1) * 10) / 10, d1, p1]; };
       const [crabS, crabD, crabP] = sp(crab), [kingS, kingD, kingP] = sp(king);
-      S.sales[k] = { orders: oS + oD, ordersS: oS, ordersD: oD, store, deliv, take, total: tot, liquor: Math.round(store * SC.liquorOfStore / 100) * 100, crab, king, lob, crabS, crabD, crabP, kingS, kingD, kingP, lobS: lob, lobD: 0, lobP: 0, by: pick(S.staff).name, at: k + ' 21:40', src: 'demo' };
+      const cash = Math.round(store * (0.08 + R() * 0.1) / 10000) * 10000, transfer = R() < 0.35 ? Math.round(store * 0.04 / 10000) * 10000 : null, voucher = R() < 0.25 ? 50000 * (1 + Math.floor(R() * 3)) : null, gifticon = R() < 0.15 ? 30000 : null;   // 결제 수단 (포스 정산 메시지)
+      S.sales[k] = { orders: oS + oD, ordersS: oS, ordersD: oD, store, deliv, take, total: tot, liquor: Math.round(store * SC.liquorOfStore / 100) * 100, crab, king, lob, crabS, crabD, crabP, kingS, kingD, kingP, lobS: lob, lobD: 0, lobP: 0,
+        cash, transfer, voucher, gifticon, petty: 50000, priceCrab: 100000 + Math.round(R() * 12) * 1000, priceKing: 128000 + Math.round(R() * 10) * 1000, priceLob: 118000 + Math.round(R() * 8) * 1000,
+        note: i === 2 ? '잔돈 없어 직원에게 1만원 빌림 — 내일 갚기' : voucher ? '상품권 손님 ' + (voucher / 50000) + '팀' : undefined, by: pick(S.staff).name, at: k + ' 21:40', src: 'demo' };
       const d = S.days[k]; const mt = S.templates.find((x) => x.ev === 'money'); if (d && mt && d.inst[mt.id] && d.inst[mt.id].s === 'done') d.inst[mt.id].ev = tot;
     }
 
@@ -170,6 +173,7 @@ window.HM_DEMO_SEED = async function (api) {
       const k = shift(today, -i);
       if (i > C.days.purchases) {   // 오래된 기간은 갑각류만, 명절 2주 전은 단가 10~15% 높게
         const nearEv0 = i % 4 === 0; if (nearEv0) { const nearEv = C.sales.holidays.some((hd) => { const ev = hd.length === 5 ? k.slice(0, 4) + '-' + hd : hd; const dd = (new Date(ev + 'T00:00:00') - new Date(k + 'T00:00:00')) / 864e5; return dd >= 0 && dd <= 14; }); const kg = Math.round(PC.crabKg[st] * (0.8 + R() * 0.4) * 10) / 10, unit = Math.round((PC.crabUnit[0] - 6000 + R() * 9000) * (nearEv ? 1.12 : 1) + (C.days.crabHistory - i) * 12); row({ date: k, cat: '대게', name: '대게(러시아)', qty: kg, unit: 'kg', amount: Math.round(kg * unit / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
+        if (i % 12 === 5) { const lk = Math.round((st === 'ansan' ? 4 : 2.5) * (0.8 + R() * 0.4) * 10) / 10; row({ date: k, cat: '랍스터', name: '랍스터(캐나다)', qty: lk, unit: 'kg', amount: Math.round(lk * (52000 + R() * 8000) / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
         if (i % 8 === 2) { const kk = Math.round(PC.kingKg[st] * (0.8 + R() * 0.4) * 10) / 10, ku = PC.kingUnit[0] - 8000 + Math.round(R() * 16000); row({ date: k, cat: '킹크랩', name: '킹크랩', qty: kk, unit: 'kg', amount: Math.round(kk * ku / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
         continue;
       }
@@ -179,6 +183,7 @@ window.HM_DEMO_SEED = async function (api) {
         row({ date: k, cat: '대게', name: '대게(러시아)', qty: kg, unit: 'kg', amount: Math.round(kg * unit / 100) * 100, vendor: PC.vendors.crab, by: mgr.name, memo: spike ? '주말 단체 예약 대비 — 시세 올라 단가 높음' : '' });
         if (R() < PC.kingProb) { const kk = Math.round(PC.kingKg[st] * (0.8 + R() * 0.4) * 10) / 10, ku = PC.kingUnit[0] + Math.round(R() * (PC.kingUnit[1] - PC.kingUnit[0])); row({ date: k, cat: '킹크랩', name: '킹크랩', qty: kk, unit: 'kg', amount: Math.round(kk * ku / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
       }
+      if (i % 12 === 5) { const lk = Math.round((st === 'ansan' ? 4 : 2.5) * (0.8 + R() * 0.4) * 10) / 10; row({ date: k, cat: '랍스터', name: '랍스터(캐나다)', qty: lk, unit: 'kg', amount: Math.round(lk * (52000 + R() * 8000) / 100) * 100, vendor: PC.vendors.crab, by: mgr.name }); }
       if (i % PC.vegEvery === 0) { const v = pick(PC.vegItems), q = 2 + Math.floor(R() * 3); row({ date: k, cat: '식자재', name: v[0], qty: q, unit: '단', amount: q * v[1], vendor: PC.vendors.veg }); }
       if (i % 2 === 1) { const f = pick(PC.food); row({ date: k, cat: f[0], name: f[1], qty: null, unit: 'kg', amount: Math.round(f[2] * 1.6 * (0.85 + R() * 0.3) / 100) * 100 }); }
     }

@@ -114,16 +114,18 @@ const Store = (() => {
     return out;
   }
 
+  let lastGetFailed = false;   // 마지막 cloudGet 이 "서버에 없음"(false)인지 "읽기 실패"(true)인지
   async function cloudGet(k, known) {
     if (supa) {
       try {
+        lastGetFailed = false;
         const { data, error } = await supa.client.from('docs').select('doc, saved_at').eq('key', k).maybeSingle();
         if (error) throw error;
         if (!data || !data.doc) return null;
         const doc = data.doc; if (doc.savedAt == null) doc.savedAt = Number(data.saved_at) || 0;
         if (cloudErr) { cloudErr = null; document.dispatchEvent(new Event('cloud-status')); }
         return doc;
-      } catch (e) { cloudFail(e); return null; }
+      } catch (e) { lastGetFailed = true; cloudFail(e); return null; }
     }
     try {
       const snap = await cloud.doc('kv/' + k).get();
@@ -157,17 +159,22 @@ const Store = (() => {
     if (!(k.startsWith('state:') || k.startsWith('shared:'))) return v;
     try {
       const { data, error } = await supa.client.from('docs').select('doc, saved_at').eq('key', k).maybeSingle();
-      if (error || !data || !data.doc) return v;
+      if (error) throw Object.assign(new Error('서버 최신본을 읽지 못해 저장을 미룹니다: ' + (error.message || '')), { defer: true });
+      if (!data || !data.doc) { staleLocal.delete(k); return v; }   // 서버에 아직 없는 문서 — 처음 올리는 것
       const srv = data.doc, srvAt = srv.savedAt || Number(data.saved_at) || 0;
-      if (!(srvAt > (lastUp[k] || 0)) || srvAt === v.savedAt) return v;
+      const mustMerge = staleLocal.has(k);   // 캐시로 연 기기 — 서버본을 본 적이 없으니 무조건 합친다
+      if (!mustMerge && (!(srvAt > (lastUp[k] || 0)) || srvAt === v.savedAt)) return v;
+      staleLocal.delete(k);
       const merged = mergeDocs(v, srv);
       merged.savedAt = Date.now();
       Object.keys(v).forEach((f) => { if (!(f in merged)) delete v[f]; });
       Object.assign(v, merged);           // 앱이 들고 있는 상태(S) 자체를 합친 결과로 바꾼다
       document.dispatchEvent(new CustomEvent('doc-merged', { detail: { key: k } }));
-    } catch (_) { /* 합치기 실패 시 그냥 저장 */ }
+    } catch (e) { if (e && e.defer) throw e; /* 그 밖의 합치기 실패는 그냥 저장 */ }
     return v;
   }
+  const staleLocal = new Set();   // 서버를 못 읽고 캐시로 연 문서 — 다음 저장 때 반드시 합친다
+  let cloudRetry = null, cloudRetryTimer = null;
   async function cloudPut(k, v) {
     if (supa) {
       try {
@@ -175,9 +182,16 @@ const Store = (() => {
         lastUp[k] = v.savedAt;
         const { error } = await supa.client.from('docs').upsert({ key: k, doc: v, saved_at: v.savedAt || Date.now(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         if (error) throw error;
+        cloudRetry = null;
         if (cloudErr) { cloudErr = null; document.dispatchEvent(new Event('cloud-status')); }
         return true;
-      } catch (e) { cloudFail(e); return false; }
+      } catch (e) {
+        cloudFail(e);
+        /* 올리지 못한 저장은 잠시 뒤 다시 시도한다 (서버를 못 읽어 미룬 저장 포함). 덮어쓰기보다 늦는 쪽이 낫다 */
+        cloudRetry = { k, v }; clearTimeout(cloudRetryTimer);
+        cloudRetryTimer = setTimeout(() => { const r = cloudRetry; cloudRetry = null; if (r) cloudPut(r.k, r.v); }, 8000);
+        return false;
+      }
     }
     try {
       const core = { ...v };
@@ -224,6 +238,9 @@ const Store = (() => {
     const local = await localGet(k);
     if (!cloudOn() || !CLOUD_KEYS(k)) return local;
     const remote = await cloudGet(k, local && local.blobs);
+    /* 서버를 읽지 못했으면(인터넷·세션 문제) 이 기기 캐시로 서버를 덮어쓰지 않는다. 캐시로 열어 두고, 다음 저장 때 서버본과 합친다.
+       2026-10-13 안산점: 옛 캐시를 가진 기기가 서버본과 합치지 못한 채 올려 지난 날짜 체크가 풀린 사고 뒤 추가 */
+    if (!remote && lastGetFailed && supa) { if (local) staleLocal.add(k); return local; }
     /* 처음 연결할 때의 안전장치 — 서버 쪽이 사실상 빈 문서인데 이 기기에는 기록이 있으면, 시각과 상관없이 이 기기 것을 올린다.
        (기록 없는 기기를 먼저 연결해 빈 문서가 올라간 뒤, 기록 있는 아이패드가 덮이는 사고를 막는다) */
     const isEmpty = (d) => !d || (!Object.keys(d.days || {}).length && !(d.purchases || []).length && !Object.keys(d.sales || {}).length && !(d.issues || []).length && !(d.contracts || []).length);

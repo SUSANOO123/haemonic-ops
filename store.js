@@ -243,10 +243,12 @@ const Store = (() => {
     } catch (e) { cloudFail(e); return false; }
   }
 
-  async function getDoc(k) {
+  async function getDoc(k, readOnly) {
     const local = await localGet(k);
     if (!cloudOn() || !CLOUD_KEYS(k)) return local;
     const remote = await cloudGet(k, local && local.blobs);
+    /* 읽기만(대시보드가 다른 매장 문서를 볼 때) — 어떤 경우에도 서버에 쓰지 않는다. 2026-10-14: 대시보드 60초 폴링이 다른 매장 문서를 올리던 경로 차단 */
+    if (readOnly) { if (remote) { await localPut(k, remote); return remote; } return local; }
     /* 서버를 읽지 못했으면(인터넷·세션 문제) 이 기기 캐시로 서버를 덮어쓰지 않는다. 캐시로 열어 두고, 다음 저장 때 서버본과 합친다.
        2026-10-13 안산점: 옛 캐시를 가진 기기가 서버본과 합치지 못한 채 올려 지난 날짜 체크가 풀린 사고 뒤 추가 */
     if (!remote && lastGetFailed && supa) { if (local) staleLocal.add(k); return local; }
@@ -685,7 +687,7 @@ const Store = (() => {
   }
 
   /* 다른 매장의 상태 문서를 직접 읽고 쓴다 — 설정에서 두 매장 직원을 한 화면에서 관리하기 위해 */
-  async function loadStore(id) { return getDoc('state:' + id); }
+  async function loadStore(id) { return getDoc('state:' + id, 'state:' + id !== curKey); }   // 지금 매장이 아니면 읽기만
   async function saveStore(id, doc) { doc.savedAt = Date.now(); return putDoc('state:' + id, doc); }
 
   /* 매장 공용 문서 (트러블시트 등) — 'shared:<이름>' 키. 클라우드에서도 같이 동기화된다 */

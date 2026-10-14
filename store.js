@@ -174,15 +174,24 @@ const Store = (() => {
     return v;
   }
   const staleLocal = new Set();   // 서버를 못 읽고 캐시로 연 문서 — 다음 저장 때 반드시 합친다
+  /* 2026-10-14 저장 폭주 사고: 두 기기가 내용이 똑같은 문서를 몇 초마다 번갈아 올려 하루 3만 번 저장 → 서버 디스크가 차서 읽기 전용이 됨.
+     본문(savedAt·ui 제외)이 마지막으로 올렸거나 받은 것과 같으면 서버에는 올리지 않는다. 화면 상태(ui)는 이 기기 것이라 서버에 보낼 이유가 없다 */
+  const lastSig = {};
+  function docSig(v) {
+    try { const c = { ...v }; delete c.savedAt; delete c.ui; const t = JSON.stringify(c); let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return t.length + ':' + h.toString(16); }
+    catch (_) { return null; }
+  }
   let cloudRetry = null, cloudRetryTimer = null;
   async function cloudPut(k, v) {
     if (supa) {
       try {
+        const sig0 = docSig(v);
+        if (sig0 && sig0 === lastSig[k] && !staleLocal.has(k)) return true;   // 내용이 그대로 — 서버에 다시 올리지 않는다
         v = await mergeBeforePut(k, v);
         lastUp[k] = v.savedAt;
         const { error } = await supa.client.from('docs').upsert({ key: k, doc: v, saved_at: v.savedAt || Date.now(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         if (error) throw error;
-        cloudRetry = null;
+        cloudRetry = null; lastSig[k] = docSig(v);
         if (cloudErr) { cloudErr = null; document.dispatchEvent(new Event('cloud-status')); }
         return true;
       } catch (e) {
@@ -257,7 +266,7 @@ const Store = (() => {
     }
     if (remote && (!local || (remote.savedAt || 0) >= (local.savedAt || 0))) {
       await localPut(k, remote);          // 로컬은 캐시 — 오프라인에 대비해 최신본을 남겨둔다
-      lastUp[k] = remote.savedAt;
+      lastUp[k] = remote.savedAt; lastSig[k] = docSig(remote);
       markSynced(k);
       return remote;
     }
@@ -344,7 +353,7 @@ const Store = (() => {
            기록만 앞당기면, 그 뒤 저장 때 합칠 필요가 없다고 보고 덮어써 버린다 (2026-10-11 두 매장 실제 시험에서 발견) */
         const applied = remoteCb ? remoteCb(k, doc) !== false : true;
         if (!applied) return;
-        lastUp[k] = doc.savedAt;
+        lastUp[k] = doc.savedAt; lastSig[k] = docSig(doc);
         await localPut(k, doc);
       }, 300);
     };
@@ -634,7 +643,7 @@ const Store = (() => {
     state.savedAt = Date.now();
     pending = state;
     clearTimeout(timer);
-    timer = setTimeout(flush, 250);
+    timer = setTimeout(flush, 1000);   // 2026-10-14: 250ms → 1초. 연속 체크를 한 번에 올린다
   }
 
   async function flush() {

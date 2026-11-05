@@ -370,7 +370,7 @@ const Store = (() => {
        다른 기기에서 바꾼 상태(해결 완료 · 미션 승인 · 매입 수정 등)가 되돌아간다 (10/15 점검). 손댄 시각이 없으면 예전처럼 최신 문서 쪽 */
     const tsOf = (x) => Number(x && (x.u || x.updatedAt || Math.max(x.doneAt || 0, x.claimedAt || 0)))
       || 0;
-    [['purchases', 'id'], ['contracts', 'id'], ['recipes', 'id'], ['training', 'id'], ['deaths', 'id'],
+    [['purchases', 'id'], ['taxBuy', 'id'], ['contracts', 'id'], ['recipes', 'id'], ['training', 'id'], ['deaths', 'id'],
       ['health', 'id'], ['staff', 'name'], ['trainSeen', null], ['notices', 'id'], ['issues', 'id'], ['missions', 'id'], ['syncLog', 'id']].forEach(([f, by]) => {
       const v = by ? unionNewest(newer[f], older[f], by, tsOf) : unionBy(newer[f], older[f], by); if (v !== undefined) out[f] = v;
     });

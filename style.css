@@ -1534,3 +1534,6 @@ input.won{text-align:right;font-variant-numeric:tabular-nums}
 /* 카카오톡으로 보내기 버튼 — 카카오 노랑 */
 .btn.kakao{background:#FEE500;color:#191919;border-color:#FEE500}
 .btn.kakao:hover{filter:brightness(.96)}
+
+/* 국세청 매입자료 월별 표에서 선택된 달 */
+.tkLog tr.on td{background:rgba(255,255,255,.07)}

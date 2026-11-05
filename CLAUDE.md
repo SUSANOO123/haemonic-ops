@@ -30,6 +30,8 @@
 - 마감 리포트는 서버가 21:50(KST)에 보낸다(앱 설정 reportAt을 서버 cron이 읽음). 서버 연결 중이면 앱은 직접 보내지 않는다.
 - 서버 연결은 로그인 없이 자동(익명 세션, 2026-10-07). Supabase › Authentication › Allow anonymous sign-ins 가 켜져 있어야 한다. RLS는 authenticated 역할 기준이라 익명 세션도 통과한다.
 
+- 국세청 매입자료(2026-11-05, `vTaxBuy`, 회계 › 국세청 매입자료, 원가 관리 머리에 버튼): 홈택스는 조회 API가 없어 **홈택스 매입 목록 엑셀(xls/xlsx)·CSV 업로드**로 받는다. `S.taxBuy[]`(승인번호로 중복 제거, 다른 기기와 id 기준 합침), 엑셀 읽기는 `vendor/xlsx.full.min.js`(SheetJS 0.18.5)를 올릴 때만 동적 로드. 월별·거래처별 집계와 원가 입력(`S.purchases`) 합계 비교. 매입 입력에는 더하지 않는다(대조용). 가져오기·지우기는 사장님 모드만.
+
 ## 고칠 때 순서
 1. `node --check app.js` 로 문법 확인 → 로컬에서 화면 확인 → `index.html` 버전 올리기 → 커밋 → push → `curl`로 Vercel에 새 버전이 보일 때까지 확인.
 2. 루틴(`data.js` TEMPLATES)을 바꾸면 `ROUTINE_VER`를 올리고, 사장님이 앱에서 고친 값(`edited`)·순서(`ord`)·매장 구분(`scope`)·직접 만든 업무(`custom`)는 유지되는지 본다.

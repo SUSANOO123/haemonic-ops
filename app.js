@@ -214,7 +214,7 @@ const App = (() => {
     'seAdd', 'seClearDay', 'seCopyPrev', 'seFlag', 'seMonth', 'seNote', 'sePattern', 'seRemove', 'seRules', 'seShift', 'patFill', 'patFillNext', 'cmApply', 'cmAuto', 'cmClear', 'cmPreview', 'hdAdd', 'hdDel', 'crew',
     'healthAdd', 'healthDel', 'trainAdd', 'trainDel', 'trainEdit', 'trainSeed', 'trainReward', 'rankReward', 'msAdd', 'msEdit', 'msDel', 'msGoal',
     'recipeAdd', 'recipeEdit', 'recipeDel', 'staffAdd', 'staffDel', 'staffOff', 'staffRole', 'staffSeg', 'staffType',
-    'tankCount', 'tankCareDel', 'tankLogDel', 'deadDel', 'purchaseDel', 'purchaseCsv', 'salesDel', 'salesCsv',
+    'tankCount', 'tankCareDel', 'tankLogDel', 'deadDel', 'purchaseDel', 'purchaseCsv', 'salesDel', 'salesCsv', 'salesExport',
     'reset', 'import', 'sampleLoad', 'sampleClear', 'fixedAdd', 'fixedEdit', 'fixedDel', 'weeklyPay', 'sper', 'toggleAskWho', 'toggleReport', 'toggleSound', 'toggleTgInstant', 'tgFind', 'tgTest', 'supaClear', 'laborConfirm', 'laborUnconfirm', 'sealUpload', 'sealDel', 'guideEdit', 'doneMemo', 'staffLockToggle',
     'cAdd', 'cDel', 'cVoid', 'cEdit', 'cSign', 'cStamp', 'cDeliver', 'cAttach', 'cFileDel', 'cSaveBack', 'sendReportNow', 'testAlarm',
     'msApprove', 'issueDel', 'healthMonths', 'staffMerge',   // 10/15 점검: 직원이 자기 미션 승인 · 남의 글 삭제 · 보건증 유효기간 변경이 되던 구멍
@@ -4161,7 +4161,7 @@ const App = (() => {
     const filled = dates.filter((k) => salesOf(k));
     let h = `<div class="hd"><div><h2>매출 입력</h2><div class="sub">마감 때 "포스 마감·매출 정산" 루틴을 완료하면 여기에 자동으로 쌓입니다. 빠진 날은 줄을 눌러 채우세요.</div></div>
       <div class="mnav"><button class="dnav" data-act="smonthNav" data-d="-1" aria-label="이전 달">‹</button><span class="mtitle">${monthLabel(m)}</span><button class="dnav" data-act="smonthNav" data-d="1" aria-label="다음 달">›</button>
-        <button class="btn" data-act="salesCsv">CSV 가져오기</button><button class="btn primary" data-act="salesAdd">+ 매출 입력</button></div></div>`;
+        <button class="btn" data-act="salesCsv">CSV 가져오기</button><button class="btn" data-act="salesExport" data-m="${m}" title="이 달 매출을 엑셀에서 열 수 있는 CSV 파일로 저장">CSV 내려받기</button><button class="btn" data-act="salesExport" data-m="all" title="입력된 모든 날짜">전체 CSV</button><button class="btn primary" data-act="salesAdd">+ 매출 입력</button></div></div>`;
     h += `<div class="cards m4">
       <div class="card"><div class="cl">이달 매출</div><div class="cv sm2">${fmtWon(monthSales(m))}</div></div>
       <div class="card"><div class="cl">입력한 날</div><div class="cv">${filled.length}<small>일</small></div></div>
@@ -4206,6 +4206,27 @@ const App = (() => {
   const CSV_MAP = { '날짜': 'date', '매장': 'storeName', '총주문': 'orders', '매장주문': 'ordersS', '배달주문': 'ordersD', '매장매출': 'store', '배달매출': 'deliv', '포장매출': 'take', '총매출': 'total', '대게kg': 'crab', '킹크랩kg': 'king', '랍스타kg': 'lob', '랍스터kg': 'lob', '주류매출': 'liquor',
     '대게매장kg': 'crabS', '대게배달kg': 'crabD', '킹크랩매장kg': 'kingS', '킹크랩배달kg': 'kingD', '랍스터매장kg': 'lobS', '랍스타매장kg': 'lobS', '랍스터배달kg': 'lobD', '랍스타배달kg': 'lobD', '대게포장kg': 'crabP', '킹크랩포장kg': 'kingP', '랍스터포장kg': 'lobP', '랍스타포장kg': 'lobP',
     '현금': 'cash', '계좌이체': 'transfer', '이체': 'transfer', '상품권': 'voucher', '기프티콘': 'gifticon', '시제': 'petty', '시재': 'petty', '대게단가': 'priceCrab', '킹크랩단가': 'priceKing', '랍스터단가': 'priceLob', '랍스타단가': 'priceLob' };
+  /* CSV 내려받기 (2026-11-05 사장님 요청) — 열 이름은 CSV 가져오기와 같아서 그대로 다시 불러올 수 있다. 엑셀용 BOM 포함 */
+  const CSV_OUT = [['날짜', 'date'], ['매장', 'storeName'], ['총주문', 'orders'], ['매장주문', 'ordersS'], ['배달주문', 'ordersD'], ['매장매출', 'store'], ['배달매출', 'deliv'], ['포장매출', 'take'], ['총매출', 'total'],
+    ['홀팀당객단가', 'perTeam'], ['배달건당객단가', 'perDeliv'], ['대게kg', 'crab'], ['킹크랩kg', 'king'], ['랍스터kg', 'lob'], ['주류매출', 'liquor'],
+    ['대게매장kg', 'crabS'], ['대게배달kg', 'crabD'], ['대게포장kg', 'crabP'], ['킹크랩매장kg', 'kingS'], ['킹크랩배달kg', 'kingD'], ['킹크랩포장kg', 'kingP'], ['랍스터매장kg', 'lobS'], ['랍스터배달kg', 'lobD'], ['랍스터포장kg', 'lobP'],
+    ['현금', 'cash'], ['계좌이체', 'transfer'], ['상품권', 'voucher'], ['기프티콘', 'gifticon'], ['시제', 'petty'], ['대게단가', 'priceCrab'], ['킹크랩단가', 'priceKing'], ['랍스터단가', 'priceLob'], ['입력자', 'by'], ['메모', 'note']];
+  function salesCsvExport(m) {
+    const all = m === 'all';
+    const keys = salesDates().filter((k) => all || k.slice(0, 7) === m);
+    if (!keys.length) { alert(all ? '입력된 매출이 없습니다.' : `${monthLabel(m)}에 입력된 매출이 없습니다.`); return; }
+    const meta = Store.meta || {}; const stName = ((meta.stores || []).find((x) => x.id === meta.current) || {}).name || '';
+    const q = (v) => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+    const rows = keys.map((k) => { const r = S.sales[k] || {};
+      const v = { ...r, date: k, storeName: stName, total: salesTotal(r),
+        perTeam: (r.ordersS > 0 && r.store != null) ? Math.round(Number(r.store) / Number(r.ordersS)) : '',
+        perDeliv: (r.ordersD > 0 && r.deliv != null) ? Math.round(Number(r.deliv) / Number(r.ordersD)) : '' };
+      return CSV_OUT.map(([, f]) => q(v[f])).join(','); });
+    const text = '\ufeff' + CSV_OUT.map(([n]) => n).join(',') + '\n' + rows.join('\n');
+    const name = `해모닉_매출_${stName || '매장'}_${all ? `전체_${keys[0]}_${keys[keys.length - 1]}` : m}.csv`;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
   function salesCsvImport() {
     const inp = document.createElement('input');
     inp.type = 'file'; inp.accept = '.csv,text/csv';
@@ -6138,6 +6159,7 @@ const App = (() => {
           save(); closeModal(); render(); break;
         }
         case 'salesCsv': salesCsvImport(); break;
+        case 'salesExport': salesCsvExport(b.dataset.m); break;
         case 'sper': S.ui.sper = b.dataset.p; save(); render(); break;
         case 'fixedAdd': fixedForm(null); break;
         case 'fixedEdit': fixedForm(fixedList().find((f) => f.id === id)); break;

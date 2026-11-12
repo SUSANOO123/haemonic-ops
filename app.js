@@ -977,7 +977,8 @@ const App = (() => {
       return `<div class="hd"><div><h2>🔐 기기 등록</h2><div class="sub">이 기기는 매장 기록을 볼 수 있습니다.</div></div></div>
         <div class="lockBox regBox"><div class="lockIc">✅</div>
           <p><b>${sp.device ? '이 기기는 등록되어 있습니다.' : '이 기기는 매장 인터넷으로 열려 있습니다.'}</b><br><span class="mut">${sp.device ? '등록이 풀리는 기기라면 아래 전용 주소를 홈 화면에 두세요.' : '매장 밖에서도 쓰려면 사장님이 아래에서 이 기기를 등록할 수 있습니다.'}</span></p>
-          <div class="rowbtns"><button class="btn primary" data-act="view" data-v="dash">대시보드로</button>${sp.device ? '<button class="btn" data-act="deviceLink">📌 이 기기 전용 주소</button>' : ''}</div>
+          <div class="rowbtns"><button class="btn primary" data-act="view" data-v="dash">대시보드로</button>${sp.device ? '<button class="btn" data-act="deviceLink">📌 이 기기 전용 주소</button>' : ''}${sp.device && Store.credOk ? '<button class="btn" data-act="deviceCredSave">🔑 브라우저에 열쇠 보관</button>' : ''}</div>
+          ${sp.device && Store.credOk ? '<p class="hint keep">포스가 껐다 켤 때마다 등록이 풀린다면 <b>브라우저에 열쇠 보관</b>을 누르고, 브라우저가 "비밀번호를 저장할까요?"라고 물으면 <b>저장</b>을 누르세요. 다음부터는 저장소가 지워져도 자동으로 열립니다.</p>' : ''}
           ${sp.device ? '' : `<details style="margin-top:14px"><summary class="hint">이 기기를 따로 등록하기 (사장님)</summary><div class="regForm" style="margin-top:8px">
             <label>기기 이름<input id="rgName" placeholder="예: 사장님 폰" autocomplete="off"></label>
             <label>매장<select id="rgStore">${(Store.meta ? Store.meta.stores : []).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}<option value="" selected>공용 (사장님 기기)</option></select></label>
@@ -995,6 +996,8 @@ const App = (() => {
           <label>매장<select id="rgStore">${(Store.meta ? Store.meta.stores : []).map((x) => `<option value="${x.id}"${x.id === (Store.meta || {}).current ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="">공용 (사장님 기기)</option></select></label>
           <label>사장님 비밀번호<input id="rgPw" type="password" autocomplete="current-password"></label>
           <button class="btn primary" data-act="deviceRegister">이 기기 등록</button>
+          ${Store.credOk ? '<button class="btn" data-act="deviceCred" style="margin-top:8px">🔑 이 브라우저에 저장된 열쇠로 열기</button>' : ''}
+          <p class="hint keep">등록할 때 브라우저가 <b>"비밀번호를 저장할까요?"</b>라고 물으면 <b>저장</b>을 눌러 주세요. 그러면 포스가 껐다 켜져 저장소가 지워지거나 매장 인터넷 주소가 바뀌어도 이 화면이 다시 뜨지 않습니다.</p>
           <p class="hint">첫 등록이면 지금 넣는 비밀번호가 사장님 비밀번호가 됩니다 (안산점·안양점 공통). 등록은 사장님만 합니다.</p>
           <p class="hint"><b>매장에서 한 번 등록하면 그 매장 인터넷에서는 어떤 기기든 원래 주소로 그냥 열립니다.</b> 이 화면이 매장에서 떴다면 이 매장 인터넷이 아직 기억되지 않은 것이니, 사장님이 여기서 한 번만 등록해 주세요.</p>
         </div>
@@ -6722,6 +6725,8 @@ const App = (() => {
         case 'supaRetry': Store.flush().then(() => location.reload()); break;
         case 'ownerLogin': ownerLoginModal(); break;
         case 'deviceRegister': deviceRegisterGo(); break;
+        case 'deviceCred': Store.credLoad('optional').then((ok) => { if (ok) location.reload(); else banner('이 브라우저에 저장된 열쇠가 없습니다', '사장님이 아래에서 한 번 등록하고, 브라우저가 물으면 "저장"을 눌러 주세요.'); }); break;
+        case 'deviceCredSave': Store.credSave('해모닉 기기 열쇠').then((ok) => banner(ok ? '브라우저에 열쇠를 맡겼습니다' : '이 브라우저는 열쇠 보관을 지원하지 않습니다', ok ? '"비밀번호를 저장할까요?" 창이 떴다면 저장을 눌러 주세요. 저장소가 지워져도 자동으로 되찾습니다.' : '크롬이나 엣지에서 열어 주세요.')); break;
         case 'deviceLink': deviceLinkModal(false); break;
         case 'netRevoke': { if (!confirm(`${b.dataset.name} 인터넷(${id})을 끊을까요?\n이 인터넷에서는 다시 등록된 기기만 열립니다.`)) break; Store.netRevoke(id).then(() => { devList = null; render(); banner('매장 인터넷을 끊었습니다', id); }).catch((e) => alert('끊지 못했습니다: ' + (e.message || e))); break; }
         case 'deviceLinkCopy': { const l = Store.deviceLink(); const done = () => banner('주소를 복사했습니다', '이 기기의 홈 화면·즐겨찾기에 추가하세요.');

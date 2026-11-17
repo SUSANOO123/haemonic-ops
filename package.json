@@ -1,0 +1,9 @@
+{
+  "name": "haemonic-ops",
+  "private": true,
+  "type": "module",
+  "description": "해모닉 업무 체크리스트 — 화면은 빌드 없이 그대로 올라가고, api/ 의 서버 함수만 이 파일의 패키지를 쓴다",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0"
+  }
+}

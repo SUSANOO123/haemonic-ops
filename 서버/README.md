@@ -57,3 +57,13 @@
 2026-10-13 첫 판은 저장될 때마다 문서 전체를 복사해 하루 만에 1.4GB 가 쌓였고 서버가 **읽기 전용**이 됐습니다(10/14 복구). 지금 파일은 6시간에 한 번·사진 제외·14일 보관으로 고친 안전판이며, 아직 서버에 넣지 않았습니다. 넣고 싶으면 그 파일을 한 번 실행합니다.
 
 서버가 읽기 전용이 됐을 때 푸는 법: SQL Editor 에서 `set transaction read write;` 를 **첫 문장**으로 두고 정리 SQL(큰 표 truncate 등)을 같이 실행합니다. 디스크가 비면 몇 분 뒤 자동으로 풀립니다. (`set default_transaction_read_only = off` 는 편집기가 실행마다 새 연결을 써서 안 먹습니다.)
+
+## 매입 사진 자동 입력 (2026-11-17)
+
+거래명세서·영수증 사진을 올리면 Claude 가 품목·수량·금액을 읽어 매입 칸을 채운다. 사진은 저장하지 않는다.
+
+- 서버 함수: `api/receipt.js` (Vercel). 패키지는 루트 `package.json` 의 `@anthropic-ai/sdk`.
+- **AI 열쇠**: Vercel › haemonic-ops › Settings › Environment Variables 에 `ANTHROPIC_API_KEY` (사장님이 직접 입력, GitHub·앱에는 넣지 않는다). 넣은 뒤 Redeploy.
+- 모델: 기본 `claude-opus-5-5`. 바꾸려면 환경변수 `RECEIPT_MODEL` (예: `claude-haiku-5-5` 는 훨씬 싸지만 손글씨·흐린 사진에서 덜 정확할 수 있다).
+- 접근 확인: 앱이 Supabase `ai_ticket()` 으로 1회용 표를 받아 함께 보내고, 함수가 `ai_ticket_check()` 로 되묻는다(`supabase_ai.sql`). 이 SQL 을 넣기 전에는 기기 열쇠가 있는 기기에서만 된다.
+- `supabase_ai.sql` 은 `req_ip()` 도 고친다 — 요청자가 꾸밀 수 있는 `x-forwarded-for` 대신 `cf-connecting-ip` 를 먼저 쓴다.
